@@ -1,0 +1,257 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+/*
+ * CropXense design system.
+ * Tokens are semantic. Do not add decorative colors.
+ * Radius is 3px everywhere; pills/circles only for map markers and status dots.
+ */
+
+@theme inline {
+  /* palette */
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-line: var(--line);
+  --color-forest: var(--forest);
+  --color-leaf: var(--leaf);
+  --color-amber: var(--amber);
+  --color-alert: var(--alert);
+  --color-water: var(--water);
+  --color-soil: var(--soil);
+  --color-focus: var(--focus);
+
+  /* shadcn-compatible aliases so generic utilities keep working */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--forest);
+  --color-primary-foreground: var(--surface);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--ink-2);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--alert);
+  --color-destructive-foreground: var(--surface);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--focus);
+
+  --radius-sm: var(--r);
+  --radius-md: var(--r);
+  --radius-lg: var(--r);
+  --radius-xl: var(--r);
+  --radius-2xl: var(--r);
+  --radius-3xl: var(--r);
+  --radius-4xl: var(--r);
+
+  --font-display: "Archivo", "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-sans: "Public Sans", "Noto Sans Devanagari", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Noto Sans Devanagari", ui-monospace, monospace;
+
+  --text-display: 3.5rem;
+  --text-h1: 2.5rem;
+  --text-h2: 1.75rem;
+  --text-h3: 1.25rem;
+  --text-body: 1rem;
+  --text-small: 0.875rem;
+  --text-caption: 0.75rem;
+}
+
+:root {
+  --paper: #f2efe6;
+  --surface: #fbfaf6;
+  --surface-2: #e9e5d8;
+  --ink: #1b1f1a;
+  --ink-2: #5a6155;
+  --line: #d5cfbe;
+  --forest: #14382a;
+  --leaf: #2e6b3e;
+  --amber: #b8820c;
+  --alert: #a6331e;
+  --water: #1d5b78;
+  --soil: #6b4a2f;
+  --focus: #b8820c;
+
+  --r: 3px;
+  --shadow-panel: 0 1px 0 var(--line);
+  --shadow-overlay: 0 8px 28px rgba(27, 31, 26, 0.18);
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: var(--surface-2);
+  }
+}
+
+@utility font-expanded {
+  font-family: var(--font-display);
+  font-stretch: 125%;
+  font-variation-settings: "wdth" 125;
+}
+
+@utility text-caption {
+  font-size: var(--text-caption);
+  line-height: 1.3;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+@utility panel-shadow {
+  box-shadow: var(--shadow-panel);
+}
+
+@utility overlay-shadow {
+  box-shadow: var(--shadow-overlay);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    transition-duration: 120ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- SignalWeave: the one continuous motion in the product ---- */
+@keyframes sw-travel {
+  0% { offset-distance: 0%; opacity: 0; }
+  4% { opacity: 1; }
+  66% { offset-distance: 100%; opacity: 1; }
+  74% { offset-distance: 100%; opacity: 0; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+
+@keyframes sw-tail-run {
+  0% { stroke-dashoffset: 8; opacity: 0.9; }
+  66% { stroke-dashoffset: -100; opacity: 0.9; }
+  74% { stroke-dashoffset: -100; opacity: 0; }
+  100% { stroke-dashoffset: -100; opacity: 0; }
+}
+
+@keyframes sw-reticle-draw {
+  0% { stroke-dashoffset: 100; }
+  75% { stroke-dashoffset: 0; }
+  100% { stroke-dashoffset: 0; }
+}
+
+.sw-dot {
+  animation: sw-travel 6s linear infinite;
+  offset-rotate: 0deg;
+}
+
+.sw-tail {
+  stroke-dasharray: 8 200;
+  animation: sw-tail-run 6s linear infinite;
+}
+
+.sw-reticle rect,
+.sw-reticle path {
+  stroke-dasharray: 100;
+  animation: sw-reticle-draw 1.2s ease-out infinite;
+}
+
+.sw-paused,
+.sw-paused rect,
+.sw-paused path {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw-dot,
+  .sw-tail,
+  .sw-reticle rect,
+  .sw-reticle path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* Guided demo: temporary emphasis on the element a demo step points at. */
+.demo-highlight {
+  outline: 2px solid var(--amber);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .demo-highlight {
+    animation: demo-pulse 1.2s ease-out 2;
+  }
+}
+@keyframes demo-pulse {
+  0% { outline-color: var(--amber); }
+  50% { outline-color: var(--forest); }
+  100% { outline-color: var(--amber); }
+}
+
+@media print {
+  header[data-app-nav],
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+    color: #000;
+  }
+  main {
+    padding: 0 !important;
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+  }
+}
