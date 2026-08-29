@@ -50,10 +50,7 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
 
   function toggleListen() {
     if (!recognition) {
-      toast({
-        title: "Speech Input Simulation",
-        description: "Dictated: 'Observed yellowing on cotton leaves with angular water soaked lesions'",
-      });
+      toast("Speech input: 'Observed yellowing on cotton leaves with angular water soaked lesions'", "healthy");
       if (onTranscript) {
         onTranscript("Observed yellowing on cotton leaves with angular water soaked lesions");
       }
@@ -67,10 +64,7 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
       try {
         recognition.start();
         setListening(true);
-        toast({
-          title: "Listening Field Observations...",
-          description: "Speak your crop symptoms or observations clearly",
-        });
+        toast("Listening for field observations... Speak clearly", "healthy");
       } catch (e) {
         console.warn(e);
       }
@@ -79,10 +73,7 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
 
   function toggleSpeak() {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      toast({
-        title: "Audio Advisory Read-Aloud",
-        description: textToSpeak || "Inspect and remove infected crop debris",
-      });
+      toast(textToSpeak || "Inspect and remove infected crop debris", "healthy");
       return;
     }
 
@@ -100,10 +91,7 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
       setSpeaking(true);
-      toast({
-        title: "Reading IPM Advisory Aloud",
-        description: "Playing step-by-step guidance audio",
-      });
+      toast("Reading IPM Advisory aloud...", "healthy");
     }
   }
 

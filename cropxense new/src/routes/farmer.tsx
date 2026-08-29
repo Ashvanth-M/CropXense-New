@@ -10,9 +10,7 @@ import {
   Sprout,
   ScanLine,
   CloudSun,
-  Bug,
-  AlertCircle,
-  Clock,
+  ShieldCheck,
   UserCheck,
 } from "lucide-react";
 import { RequireAuth, RequireRole } from "@/auth/guards";
@@ -38,23 +36,21 @@ const FARMER_SHELL_CONFIG: RoleShellConfig = {
   appSubtitle: "FIELD HEALTH",
   eyebrowTitle: "FARMER PORTAL",
   homePath: "/farmer",
-  notificationPath: "/farmer/advisories",
+  notificationPath: "/farmer/crop-care",
   notificationCount: 2,
   navItems: [
     { to: "/farmer", label: "Overview", icon: LayoutDashboard, exact: true },
     { to: "/farmer/fields", label: "My Fields", icon: Sprout },
     { to: "/farmer/scan", label: "Scan Crop", icon: ScanLine },
     { to: "/farmer/forecast", label: "Weather & Risk", icon: CloudSun },
-    { to: "/farmer/pests", label: "Pest Activity", icon: Bug },
-    { to: "/farmer/advisories", label: "Advisories", icon: AlertCircle },
-    { to: "/farmer/follow-up", label: "Follow-up", icon: Clock },
+    { to: "/farmer/crop-care", label: "Crop Care", icon: ShieldCheck },
     { to: "/farmer/profile", label: "Profile & Help", icon: UserCheck },
   ],
   mobileTabs: [
     { to: "/farmer", label: "Home", icon: LayoutDashboard, exact: true },
     { to: "/farmer/scan", label: "Scan", icon: ScanLine },
+    { to: "/farmer/crop-care", label: "Crop Care", icon: ShieldCheck },
     { to: "/farmer/fields", label: "Fields", icon: Sprout },
-    { to: "/farmer/advisories", label: "Advisories", icon: AlertCircle },
     { to: "/farmer/profile", label: "Profile", icon: UserCheck },
   ],
 };

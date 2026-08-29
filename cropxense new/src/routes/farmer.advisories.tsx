@@ -20,8 +20,9 @@ import {
   Phone,
 } from "lucide-react";
 import { useAsync } from "@/hooks/useAsync";
-import { getAdvisories, acknowledgeAdvisory } from "@/services";
-import { getDemoFarms, DEMO_OFFICER } from "@/data/farmerDemo";
+import { getFarmerFarms, getAdvisories, acknowledgeAdvisory } from "@/services";
+import { DEMO_OFFICER } from "@/data/farmerDemo";
+import { useAuth } from "@/auth/AuthContext";
 import { useToast } from "@/components/ui/Toast";
 import type { Advisory } from "@/types";
 
@@ -45,7 +46,8 @@ export const Route = createFileRoute("/farmer/advisories")({
 
 function FarmerAdvisoriesPage() {
   const { toast } = useToast();
-  const { data: farms } = useAsync(() => getDemoFarms(), []);
+  const { user } = useAuth();
+  const { data: farms } = useAsync(() => getFarmerFarms(user), [user]);
   const primaryFarm = farms?.[0];
 
   const { data: advisories, loading, reload } = useAsync(

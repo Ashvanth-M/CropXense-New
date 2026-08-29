@@ -36,6 +36,7 @@ import { Route as ExpertKnowledgeRouteImport } from './routes/expert.knowledge'
 import { Route as FarmerIndexRouteImport } from './routes/farmer.index'
 import { Route as FarmerAdvisoriesRouteImport } from './routes/farmer.advisories'
 import { Route as FarmerAlertsRouteImport } from './routes/farmer.alerts'
+import { Route as FarmerCropCareRouteImport } from './routes/farmer.crop-care'
 import { Route as FarmerFieldsRouteImport } from './routes/farmer.fields'
 import { Route as FarmerFollowUpRouteImport } from './routes/farmer.follow-up'
 import { Route as FarmerForecastRouteImport } from './routes/farmer.forecast'
@@ -177,6 +178,11 @@ const FarmerAlertsRoute = FarmerAlertsRouteImport.update({
   path: '/alerts',
   getParentRoute: () => FarmerRoute,
 } as any)
+const FarmerCropCareRoute = FarmerCropCareRouteImport.update({
+  id: '/crop-care',
+  path: '/crop-care',
+  getParentRoute: () => FarmerRoute,
+} as any)
 const FarmerFieldsRoute = FarmerFieldsRouteImport.update({
   id: '/fields',
   path: '/fields',
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/expert/knowledge': typeof ExpertKnowledgeRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
+  '/farmer/crop-care': typeof FarmerCropCareRoute
   '/farmer/fields': typeof FarmerFieldsRoute
   '/farmer/follow-up': typeof FarmerFollowUpRoute
   '/farmer/forecast': typeof FarmerForecastRoute
@@ -267,6 +274,7 @@ export interface FileRoutesByTo {
   '/expert/knowledge': typeof ExpertKnowledgeRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
+  '/farmer/crop-care': typeof FarmerCropCareRoute
   '/farmer/fields': typeof FarmerFieldsRoute
   '/farmer/follow-up': typeof FarmerFollowUpRoute
   '/farmer/forecast': typeof FarmerForecastRoute
@@ -303,6 +311,7 @@ export interface FileRoutesById {
   '/expert/knowledge': typeof ExpertKnowledgeRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
+  '/farmer/crop-care': typeof FarmerCropCareRoute
   '/farmer/fields': typeof FarmerFieldsRoute
   '/farmer/follow-up': typeof FarmerFollowUpRoute
   '/farmer/forecast': typeof FarmerForecastRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/expert/knowledge'
     | '/farmer/advisories'
     | '/farmer/alerts'
+    | '/farmer/crop-care'
     | '/farmer/fields'
     | '/farmer/follow-up'
     | '/farmer/forecast'
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/expert/knowledge'
     | '/farmer/advisories'
     | '/farmer/alerts'
+    | '/farmer/crop-care'
     | '/farmer/fields'
     | '/farmer/follow-up'
     | '/farmer/forecast'
@@ -406,6 +417,7 @@ export interface FileRouteTypes {
     | '/expert/knowledge'
     | '/farmer/advisories'
     | '/farmer/alerts'
+    | '/farmer/crop-care'
     | '/farmer/fields'
     | '/farmer/follow-up'
     | '/farmer/forecast'
@@ -620,6 +632,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FarmerAlertsRouteImport
       parentRoute: typeof FarmerRoute
     }
+    '/farmer/crop-care': {
+      id: '/farmer/crop-care'
+      path: '/crop-care'
+      fullPath: '/farmer/crop-care'
+      preLoaderRoute: typeof FarmerCropCareRouteImport
+      parentRoute: typeof FarmerRoute
+    }
     '/farmer/fields': {
       id: '/farmer/fields'
       path: '/fields'
@@ -745,6 +764,7 @@ const ExpertRouteWithChildren =
 interface FarmerRouteChildren {
   FarmerAdvisoriesRoute: typeof FarmerAdvisoriesRoute
   FarmerAlertsRoute: typeof FarmerAlertsRoute
+  FarmerCropCareRoute: typeof FarmerCropCareRoute
   FarmerFieldsRoute: typeof FarmerFieldsRoute
   FarmerFollowUpRoute: typeof FarmerFollowUpRoute
   FarmerForecastRoute: typeof FarmerForecastRoute
@@ -757,6 +777,7 @@ interface FarmerRouteChildren {
 const FarmerRouteChildren: FarmerRouteChildren = {
   FarmerAdvisoriesRoute: FarmerAdvisoriesRoute,
   FarmerAlertsRoute: FarmerAlertsRoute,
+  FarmerCropCareRoute: FarmerCropCareRoute,
   FarmerFieldsRoute: FarmerFieldsRoute,
   FarmerFollowUpRoute: FarmerFollowUpRoute,
   FarmerForecastRoute: FarmerForecastRoute,

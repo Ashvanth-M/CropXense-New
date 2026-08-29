@@ -85,10 +85,13 @@ export interface Farm {
   id: string;
   name: string;
   ownerName: string;
+  ownerId?: string | undefined;
   village: string;
   districtId: string;
+  state?: string | undefined;
   areaHa: number;
   cropId: string;
+  variety?: string | undefined;
   stage: CropStage;
   lat: number;
   lon: number;
@@ -96,6 +99,10 @@ export interface Farm {
   parcel: [number, number][];
   health: "healthy" | "at_risk" | "affected";
   sowingDate: string;
+  notes?: string | undefined;
+  isArchived?: boolean | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
 }
 
 export interface Sensor {
@@ -167,6 +174,7 @@ export interface Evidence {
 export interface CropHealthAssessment {
   id: string;
   farmId: string;
+  farmerId?: string | undefined;
   districtId: string;
   cropId: string;
   threatId: string;
@@ -178,9 +186,15 @@ export interface CropHealthAssessment {
   detectedAt: string;
   affectedAreaHa: number;
   evidence: Evidence[];
-  reviewId?: string;
-  advisoryId?: string;
-  notes?: string;
+  reviewId?: string | undefined;
+  advisoryId?: string | undefined;
+  notes?: string | undefined;
+  /** Links to the FarmerScan that created this case */
+  scanId?: string | undefined;
+  /** Computed risk across disease/pest/spread dimensions */
+  riskAssessment?: RiskAssessment | undefined;
+  /** IDs of farmer feedbacks attached to this case */
+  feedbackIds?: string[] | undefined;
 }
 
 export interface ExpertReview {
@@ -224,6 +238,12 @@ export interface FollowUp {
   dueOn: string;
   action: string;
   done: boolean;
+  /** Why this follow-up was scheduled */
+  reason?: string | undefined;
+  /** When the farmer completed it */
+  completedAt?: string | undefined;
+  /** Scan ID from re-scan during follow-up */
+  resultScanId?: string | undefined;
 }
 
 export interface Outbreak {
@@ -241,4 +261,49 @@ export interface Outbreak {
   lon: number;
   newest: boolean;
   recommendedAction: string;
+}
+
+/* ───────────────────────── Farmer scan & feedback types ───────────────────── */
+
+export interface ImageValidation {
+  leafDetected: boolean;
+  imageQuality: "good" | "fair" | "poor" | "rejected";
+  cropIdentified?: string | undefined;
+  cropConfidence?: number | undefined;
+  detectedSymptoms: string[];
+  qualityNotes?: string | undefined;
+}
+
+export interface FarmerScan {
+  id: string;
+  caseId: string;
+  farmId: string;
+  cropId: string;
+  imageDataUrl: string;
+  imageValidation: ImageValidation;
+  symptoms: string[];
+  cropStage: CropStage;
+  notes?: string | undefined;
+  scannedAt: string;
+  isFollowUp: boolean;
+  previousScanId?: string | undefined;
+}
+
+export type FarmerObservation = "improving" | "no_change" | "worsening";
+
+export interface FarmerFeedback {
+  id: string;
+  caseId: string;
+  farmId: string;
+  observation: FarmerObservation;
+  notes?: string | undefined;
+  submittedAt: string;
+}
+
+export interface RiskAssessment {
+  diseaseRisk: RiskLevel;
+  pestRisk: RiskLevel;
+  spreadRisk: RiskLevel;
+  overallRisk: RiskLevel;
+  drivers: string[];
 }

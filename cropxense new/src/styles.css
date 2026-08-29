@@ -53,9 +53,9 @@
   --radius-3xl: var(--r);
   --radius-4xl: var(--r);
 
-  --font-display: "Archivo", "Noto Sans Devanagari", system-ui, sans-serif;
-  --font-sans: "Public Sans", "Noto Sans Devanagari", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", "Noto Sans Devanagari", ui-monospace, monospace;
+  --font-display: "Archivo", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --font-sans: "Public Sans", "Noto Sans Devanagari", "Noto Sans Tamil", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "Noto Sans Devanagari", "Noto Sans Tamil", ui-monospace, monospace;
 
   --text-display: 3.5rem;
   --text-h1: 2.5rem;

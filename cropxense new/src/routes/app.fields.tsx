@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Input, Select } from "@/components/ui/Field";
@@ -26,6 +26,7 @@ import {
   getTraps,
   isoDay,
   latestWeather,
+  subscribe,
 } from "@/services";
 import type { Farm } from "@/types";
 
@@ -124,6 +125,13 @@ function FieldsPage() {
       }),
     [districtId, cropId, health, query],
   );
+
+  useEffect(() => {
+    const unsub = subscribe(() => {
+      farmsQ.reload?.();
+    });
+    return unsub;
+  }, [farmsQ.reload]);
 
   const casesQ = useAsync(() => (open ? getAssessments({ farmId: open.id }) : Promise.resolve([])), [open?.id]);
   const sensorsQ = useAsync(() => getSensors(open?.districtId), [open?.districtId]);

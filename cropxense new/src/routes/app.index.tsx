@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Drawer } from "@/components/ui/Overlay";
 import { Button } from "@/components/ui/Button";
@@ -32,6 +32,7 @@ import {
   isoDay,
   latestWeather,
   validateCase,
+  subscribe,
 } from "@/services";
 import type { CropHealthAssessment } from "@/types";
 
@@ -83,6 +84,14 @@ function OverviewPage() {
   const queueQ = useAsync(() => getPriorityQueue(), []);
   const outbreaksQ = useAsync(() => getOutbreaks(), []);
   const rankQ = useAsync(() => getDistrictRanking(), []);
+
+  useEffect(() => {
+    const unsub = subscribe(() => {
+      metricsQ.reload?.();
+      queueQ.reload?.();
+    });
+    return unsub;
+  }, [metricsQ.reload, queueQ.reload]);
 
   const m = metricsQ.data;
   const metrics: Metric[] = [
@@ -232,6 +241,41 @@ function OverviewPage() {
               Amravati block — the conditions behind today's high-risk ranking.
             </p>
           </Panel>
+        </div>
+      </div>
+
+      {/* Subdivision Operational Readiness & Extension Coverage Strip */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="border border-line bg-surface p-3.5 flex items-center justify-between">
+          <div>
+            <span className="text-caption">Field Assistants On Duty</span>
+            <p className="num font-bold text-[1.125rem] text-ink mt-0.5">14 Officers Active</p>
+          </div>
+          <span className="rounded-[var(--r)] bg-leaf/15 px-2 py-0.5 text-[0.6875rem] font-bold text-leaf">93% Coverage</span>
+        </div>
+
+        <div className="border border-line bg-surface p-3.5 flex items-center justify-between">
+          <div>
+            <span className="text-caption">Assigned Scouting Visits</span>
+            <p className="num font-bold text-[1.125rem] text-ink mt-0.5">8 Scheduled Today</p>
+          </div>
+          <span className="rounded-[var(--r)] bg-amber/15 px-2 py-0.5 text-[0.6875rem] font-bold text-amber">3 Pending</span>
+        </div>
+
+        <div className="border border-line bg-surface p-3.5 flex items-center justify-between">
+          <div>
+            <span className="text-caption">Surveillance Traps Active</span>
+            <p className="num font-bold text-[1.125rem] text-forest mt-0.5">48 Network Units</p>
+          </div>
+          <span className="rounded-[var(--r)] bg-forest/15 px-2 py-0.5 text-[0.6875rem] font-bold text-forest">Online</span>
+        </div>
+
+        <div className="border border-line bg-surface p-3.5 flex items-center justify-between">
+          <div>
+            <span className="text-caption">Emergency Broadcast Status</span>
+            <p className="num font-bold text-[1.125rem] text-ink mt-0.5">Active — 4.2k Farmers</p>
+          </div>
+          <span className="rounded-[var(--r)] bg-leaf/15 px-2 py-0.5 text-[0.6875rem] font-bold text-leaf">Delivered</span>
         </div>
       </div>
 

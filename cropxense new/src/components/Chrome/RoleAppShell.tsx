@@ -87,11 +87,32 @@ export function RoleAppShell({
     window.location.href = "/";
   }
 
+  const translateLabel = (label: string) => {
+    const keyMap: Record<string, keyof typeof import("@/i18n/en").en> = {
+      Overview: "nav.overview",
+      "My Fields": "nav.fields",
+      "Scan Crop": "nav.scan",
+      "Weather & Risk": "nav.forecast",
+      "Crop Care": "nav.cropCare",
+      "Profile & Help": "nav.profile",
+      Home: "nav.home",
+      Fields: "nav.fields",
+      Scan: "nav.scan",
+      Profile: "nav.profile",
+      Surveillance: "nav.surveillance",
+      Cases: "nav.cases",
+      Advisories: "nav.advisories",
+    };
+    const key = keyMap[label];
+    return key ? t(key) : label;
+  };
+
   // Determine current active page label for header breadcrumb
   const currentNav = config.navItems.find((item) =>
     item.exact ? pathname === item.to : pathname.startsWith(item.to),
   );
-  const pageTitle = currentNav?.label || "Overview";
+  const rawPageTitle = currentNav?.label || "Overview";
+  const pageTitle = translateLabel(rawPageTitle);
 
   const userInitial = (user?.name || "U")[0]?.toUpperCase();
   const userDistrict = user?.district || "Maharashtra";
@@ -122,6 +143,7 @@ export function RoleAppShell({
           {config.navItems.map((item) => {
             const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
             const Icon = item.icon;
+            const localizedLabel = translateLabel(item.label);
             return (
               <Link
                 key={item.to}
@@ -141,7 +163,7 @@ export function RoleAppShell({
                   )}
                   aria-hidden
                 />
-                <span className="flex-1 truncate">{item.label}</span>
+                <span className="flex-1 truncate">{localizedLabel}</span>
                 {active && <ChevronRight className="size-3 text-surface/60" aria-hidden />}
               </Link>
             );
@@ -339,7 +361,7 @@ export function RoleAppShell({
                     )}
                   >
                     <Icon className={cx("size-4.5", active ? "text-amber" : "text-ink-2")} aria-hidden />
-                    <span>{item.label}</span>
+                    <span>{translateLabel(item.label)}</span>
                   </Link>
                 );
               })}

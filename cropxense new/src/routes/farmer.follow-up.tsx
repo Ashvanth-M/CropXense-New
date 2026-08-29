@@ -65,18 +65,22 @@ function markerColor(status: string): string {
   return "var(--amber)";
 }
 
+import { getFarmerFarms } from "@/services";
+
 function FarmerFollowUpPage() {
   const { user } = useAuth();
 
+  const farmsQ = useAsync(() => getFarmerFarms(user), [user]);
   const assessmentsQ = useAsync(() => getAssessments(), []);
   const followUpsQ = useAsync(() => getFollowUps(), []);
 
-  // Show all cases — in a real backend we'd filter by farmer userId.
-  // For now show the cases that belong to farms with matching district.
+  const farmIds = useMemo(() => new Set((farmsQ.data ?? []).map((f) => f.id)), [farmsQ.data]);
+
   const cases = useMemo(() => {
     const all = assessmentsQ.data ?? [];
+    const myCases = all.filter((a) => farmIds.has(a.farmId));
     // Prefer non-resolved/non-rejected open cases first, then closed ones
-    return [...all].sort((a, b) => {
+    return [...myCases].sort((a, b) => {
       const order: Record<string, number> = {
         detected: 0,
         awaiting_validation: 1,
@@ -87,7 +91,7 @@ function FarmerFollowUpPage() {
       };
       return (order[a.status] ?? 9) - (order[b.status] ?? 9);
     });
-  }, [assessmentsQ.data]);
+  }, [assessmentsQ.data, farmIds]);
 
   const followUps = followUpsQ.data ?? [];
 

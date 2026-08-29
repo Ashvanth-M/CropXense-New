@@ -7,7 +7,7 @@
  */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   FileCheck,
   CheckCircle2,
@@ -43,6 +43,7 @@ import {
   threatName,
   getTraps,
   getTrapReadings,
+  subscribe,
 } from "@/services";
 import { useToast } from "@/components/ui/Toast";
 import type { CropHealthAssessment } from "@/types";
@@ -70,6 +71,13 @@ function ExpertReviewsPage() {
   const [correctedThreat, setCorrectedThreat] = useState<string>("dis_cotton_alternaria");
   const [expertNotes, setExpertNotes] = useState<string>("");
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+
+  useEffect(() => {
+    const unsub = subscribe(() => {
+      reload?.();
+    });
+    return unsub;
+  }, [reload]);
 
   // Filter for pending cases needing scientific validation
   const pendingCases = useMemo(() => {
@@ -260,6 +268,48 @@ function ExpertReviewsPage() {
               })}
             </div>
           )}
+
+          {/* Recent Certified Verdicts */}
+          <div className="border border-line bg-surface p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-line pb-2">
+              <h3 className="font-display text-[0.875rem] font-semibold text-ink flex items-center gap-1.5">
+                <CheckCircle2 className="size-4 text-leaf" />
+                <span>Recent Certified Decisions</span>
+              </h3>
+              <Link to="/expert/history" className="text-[0.75rem] font-semibold text-forest hover:underline">
+                History →
+              </Link>
+            </div>
+
+            <div className="space-y-2 text-[0.8125rem]">
+              {(assessments ?? [])
+                .filter((a) => a.status === "expert_confirmed" || a.status === "resolved")
+                .slice(0, 3)
+                .map((item) => (
+                  <div key={item.id} className="border border-line bg-paper p-2.5 rounded-[var(--r)]">
+                    <div className="flex items-center justify-between">
+                      <span className="num font-bold text-ink text-[0.75rem]">{item.id}</span>
+                      <span className="rounded-[var(--r)] bg-leaf/15 px-1.5 py-0.5 text-[0.6875rem] font-bold text-leaf">
+                        Certified
+                      </span>
+                    </div>
+                    <p className="font-semibold text-ink text-[0.8125rem] mt-1">{item.suspected}</p>
+                    <p className="text-[0.6875rem] text-ink-2 mt-0.5">{cropName(item.cropId)} · {item.districtId}</p>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Quick Pathology Diagnostic Rules */}
+          <div className="border border-forest/30 bg-surface-2 p-4 text-[0.8125rem]">
+            <h3 className="font-semibold text-forest flex items-center gap-1.5">
+              <FlaskConical className="size-4" />
+              <span>Diagnostic Guideline (PDKV)</span>
+            </h3>
+            <p className="text-ink-2 mt-1.5 text-[0.75rem]">
+              Confirm Bacterial Blight if angular water-soaked lesions are restricted by leaf veinlets. If concentric rings appear, reclassify to Alternaria leaf spot.
+            </p>
+          </div>
         </div>
 
         {/* Right Column: Case Deep Dive & Validation Console (65%) */}

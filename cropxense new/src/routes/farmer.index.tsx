@@ -1,13 +1,23 @@
 /**
- * /farmer/ — Farmer Overview & Farm Health Dashboard.
+ * /farmer/ — Simplified, Farmer-First Overview Command Center.
  *
- * Responsive, desktop-first agricultural intelligence view for farmers.
- * Shows high-level farm health status, registered fields, weather risk index,
- * active pest alerts, and latest actionable IPM advisories.
+ * Designed for SIH 2026 jury clarity (understandable in 10 seconds):
+ * 1. Top Farm Health Summary (Overall Risk, Fields, Area, Active Alerts)
+ * 2. Today's Actions (Top 3 prioritized actions or clean caught-up state)
+ * 3. My Fields (Top 3 prioritized parcels + link to full field list)
+ * 4. Today's Weather & Risk (Temp, RH%, Rainfall + simple disease risk explanation)
+ * 5. Latest Crop Health Alert (Single most important active detection + direct action)
+ *
+ * Full detailed operations live in their respective dedicated sidebar routes:
+ * - /farmer/fields (Full 10-field register & CRUD)
+ * - /farmer/scan (AI crop disease scanner)
+ * - /farmer/crop-care (Advisories & Follow-up lifecycle)
+ * - /farmer/forecast (7-day microclimate risk forecast)
+ * - /farmer/pests (ETL pheromone trap surveillance)
  */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   ScanLine,
   Sprout,
@@ -16,36 +26,45 @@ import {
   CloudRain,
   Droplets,
   Thermometer,
-  Wind,
-  Bug,
-  Phone,
-  ArrowUpRight,
-  ShieldAlert,
+  ArrowRight,
+  ShieldCheck,
+  Activity,
+  Plus,
+  AlertCircle,
+  Eye,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Card";
-import { StatusShape, StatusChip, type Status } from "@/components/ui/Status";
-import { useAsync } from "@/hooks/useAsync";
-import { getAdvisories, getAssessments, latestWeather, cropName, getTraps, getTrapReadings } from "@/services";
-import { getDemoFarms, DEMO_OFFICER } from "@/data/farmerDemo";
+import { StatusChip, type Status } from "@/components/ui/Status";
+import {
+  getFarmerFarms,
+  getAdvisories,
+  getAssessments,
+  getFollowUps,
+  latestWeather,
+  getTodayActions,
+  subscribe,
+} from "@/services";
 import { useAuth } from "@/auth/AuthContext";
+import { useT } from "@/i18n";
 import { cx } from "@/lib/cx";
+import type { Farm, CropHealthAssessment, Advisory, FollowUp } from "@/types";
 
 export const Route = createFileRoute("/farmer/")({
   head: () => ({
     meta: [
-      { title: "Field Overview — CropXense Farmer" },
+      { title: "Farmer Overview — CropXense" },
       {
         name: "description",
-        content: "Farm health summary, field statuses, active pest alerts, weather risk, and IPM advisories.",
+        content: "Concise agricultural command center: farm health summary, today's actions, top fields, weather risk, and latest crop alert.",
       },
-      { property: "og:title", content: "Field Overview — CropXense Farmer" },
+      { property: "og:title", content: "Farmer Overview — CropXense" },
       {
         property: "og:description",
-        content: "Farm health summary, field statuses, active pest alerts, weather risk, and IPM advisories.",
+        content: "Concise agricultural command center: farm health summary, today's actions, top fields, weather risk, and latest crop alert.",
       },
     ],
   }),
-  component: FarmerHome,
+  component: FarmerOverviewPage,
 });
 
 const HEALTH_TO_STATUS: Record<string, Status> = {
@@ -54,240 +73,342 @@ const HEALTH_TO_STATUS: Record<string, Status> = {
   affected: "critical",
 };
 
-function FarmerHome() {
+function FarmerOverviewPage() {
   const { user } = useAuth();
-  const { data: farms, loading: farmsLoading } = useAsync(() => getDemoFarms(), []);
-  const primaryFarm = farms?.[0];
+  const { t, tCrop, tStage, tDistrict, tRisk } = useT();
 
-  const { data: assessments, loading: assessLoading } = useAsync(
-    () => (primaryFarm ? getAssessments({ farmId: primaryFarm.id }) : Promise.resolve([])),
-    [primaryFarm?.id],
+  const [farms, setFarms] = useState<Farm[]>([]);
+  const [assessments, setAssessments] = useState<CropHealthAssessment[]>([]);
+  const [advisories, setAdvisories] = useState<Advisory[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    try {
+      const [f, a, adv, fu] = await Promise.all([
+        getFarmerFarms(user),
+        getAssessments(),
+        getAdvisories(),
+        getFollowUps(),
+      ]);
+      setFarms(f);
+      setAssessments(a);
+      setAdvisories(adv);
+      setFollowUps(fu);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+    const unsub = subscribe(() => {
+      loadData();
+    });
+    return () => {
+      unsub();
+    };
+  }, [user]);
+
+  const farmList = farms;
+  const farmIds = useMemo(() => new Set(farmList.map((f) => f.id)), [farmList]);
+
+  // Derived cases strictly for this farmer's registered fields
+  const myAssessments = useMemo(
+    () => assessments.filter((a) => farmIds.has(a.farmId)),
+    [assessments, farmIds],
   );
 
-  const { data: advisories, loading: advLoading } = useAsync(
-    () => (primaryFarm ? getAdvisories(primaryFarm.id) : Promise.resolve([])),
-    [primaryFarm?.id],
+  const openCases = useMemo(
+    () => myAssessments.filter((a) => !["resolved", "rejected"].includes(a.status)),
+    [myAssessments],
   );
 
-  const districtId = primaryFarm?.districtId || user?.district || "akola";
+  const myAdvisories = useMemo(
+    () => advisories.filter((a) => farmIds.has(a.farmId)),
+    [advisories, farmIds],
+  );
+
+  const unacknowledgedAdvisories = useMemo(
+    () => myAdvisories.filter((a) => !a.acknowledged),
+    [myAdvisories],
+  );
+
+  // Computed metrics (All deterministic from live store)
+  const totalArea = useMemo(
+    () => farmList.reduce((sum, f) => sum + f.areaHa, 0).toFixed(1),
+    [farmList],
+  );
+
+  const activeAlertsCount = openCases.length + unacknowledgedAdvisories.length;
+
+  // Primary district & Hyperlocal weather
+  const primaryFarm = farmList[0];
+  const districtId = primaryFarm?.districtId || user?.district?.toLowerCase() || "amravati";
   const weather = latestWeather(districtId);
 
-  const { data: traps } = useAsync(() => getTraps(districtId), [districtId]);
-  const { data: trapReadings } = useAsync(() => getTrapReadings(), []);
+  // Overall Farm Risk Label & Styling
+  const overallRisk: "low" | "moderate" | "high" = useMemo(() => {
+    if (farmList.length === 0) return "low";
+    if (openCases.some((c) => c.severity >= 4)) return "high";
+    if (openCases.length > 0 || farmList.some((f) => f.health === "at_risk")) return "moderate";
+    return "low";
+  }, [farmList, openCases]);
 
-  // Build live top-2 trap summary from real data
-  const topTraps = useMemo(() => {
-    if (!traps || !trapReadings) return [];
-    return traps
-      .map((t) => {
-        const readings = trapReadings.filter((r) => r.trapId === t.id);
-        const latest = readings[readings.length - 1];
-        return { trap: t, count: latest?.count ?? 0, threshold: latest?.threshold ?? 10 };
-      })
-      .filter((t) => t.count > 0)
-      .sort((a, b) => (b.count / b.threshold) - (a.count / a.threshold))
-      .slice(0, 2);
-  }, [traps, trapReadings]);
+  // 1. Today's Actions (Maximum 3 prioritized actions)
+  const todayActions = useMemo(() => {
+    return getTodayActions(farmList).slice(0, 3);
+  }, [farmList]);
 
-  const openAlerts = (assessments ?? []).filter((a) => !["resolved", "rejected"].includes(a.status));
-  const activeAdvisory = advisories?.[0];
+  // 2. Top 3 Relevant Fields (Prioritize at_risk/affected first, then healthy)
+  const topFields = useMemo(() => {
+    const healthWeight = { affected: 0, at_risk: 1, healthy: 2 };
+    return [...farmList]
+      .sort((a, b) => (healthWeight[a.health] ?? 3) - (healthWeight[b.health] ?? 3))
+      .slice(0, 3);
+  }, [farmList]);
 
-  const totalArea = (farms ?? []).reduce((acc, f) => acc + f.areaHa, 0).toFixed(1);
-  const healthyCount = (farms ?? []).filter((f) => f.health === "healthy").length;
-  const attentionCount = (farms ?? []).filter((f) => f.health !== "healthy").length;
+  // 3. Single Most Important Crop Health Alert
+  const latestAlert = useMemo(() => {
+    if (openCases.length === 0) return null;
+    return [...openCases].sort((a, b) => b.severity - a.severity || new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime())[0];
+  }, [openCases]);
 
-  const farmerName = user?.name || "Ramesh Kumar";
+  const latestAlertFarm = useMemo(() => {
+    if (!latestAlert) return null;
+    return farmList.find((f) => f.id === latestAlert.farmId);
+  }, [latestAlert, farmList]);
+
+  const farmerFirstName = (user?.name || "Ramesh Kumar").split(" ")[0];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* =========================================================================
-          GREETING & PRIMARY HEALTH BANNER
+          1. TOP FARM HEALTH SUMMARY
+          "How is my farm?"
       ========================================================================= */}
-      <div className="border border-line bg-surface p-5 md:p-6">
+      <section className="border border-line bg-surface p-5 md:p-6 shadow-panel">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <span className="text-caption text-forest">CropXense Field Health</span>
-            <h1 className="mt-1 font-expanded text-[1.625rem] md:text-[2rem] leading-tight">
-              Good morning, {farmerName.split(" ")[0]}
+            <span className="text-caption text-forest font-bold uppercase tracking-wider">
+              {t("app.name")} · FIELD HEALTH
+            </span>
+            <h1 className="mt-1 font-expanded text-[1.625rem] md:text-[2rem] font-bold leading-tight text-ink">
+              {t("farmer.greeting")}, {farmerFirstName}
             </h1>
             <p className="mt-1 text-[0.875rem] text-ink-2 capitalize">
-              {districtId} district · field health summary
+              {tDistrict(districtId)} District · Farm Health Summary
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <Link
               to="/farmer/scan"
-              className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-4 text-[0.9375rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20]"
+              className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-4 text-[0.9375rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20] shadow-sm"
             >
               <ScanLine className="size-4" aria-hidden />
-              <span>Scan a Crop Leaf</span>
+              <span>{t("farmer.scanLeaf")}</span>
             </Link>
             <Link
-              to="/farmer/fields"
+              to="/farmer/crop-care"
               className="inline-flex min-h-[44px] items-center gap-2 border border-line bg-surface px-4 text-[0.9375rem] font-semibold text-ink transition-colors hover:bg-surface-2"
             >
-              <Sprout className="size-4" aria-hidden />
-              <span>Manage Fields</span>
+              <ShieldCheck className="size-4 text-forest" aria-hidden />
+              <span>{t("farmer.cropCareHub")}</span>
             </Link>
           </div>
         </div>
 
-        {/* Primary Health Strip */}
-        <div className="mt-6 grid grid-cols-2 gap-3 border-t border-line pt-5 sm:grid-cols-4 lg:grid-cols-5">
-          <div className="border-r border-line pr-3 last:border-r-0">
-            <span className="text-caption">Overall Farm Risk</span>
-            <div className="mt-1.5 flex items-center gap-2">
-              <StatusShape status={attentionCount > 0 ? "watch" : "healthy"} size={10} />
-              <span className="font-display text-[1.125rem] font-bold text-amber">Moderate Risk</span>
+        {/* 4 Clean Metric Cards */}
+        {loading ? (
+          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-line pt-5 sm:grid-cols-4">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        ) : (
+          <div className="mt-6 grid grid-cols-2 gap-4 border-t border-line pt-5 sm:grid-cols-4">
+            {/* OVERALL FARM RISK */}
+            <div className="border-r border-line pr-3 last:border-r-0">
+              <span className="text-caption">OVERALL FARM RISK</span>
+              <div className="mt-1.5 flex items-baseline gap-2">
+                <span
+                  className={cx(
+                    "font-expanded text-[1.5rem] md:text-[1.75rem] font-bold uppercase",
+                    overallRisk === "high"
+                      ? "text-alert"
+                      : overallRisk === "moderate"
+                        ? "text-amber"
+                        : "text-leaf",
+                  )}
+                >
+                  {tRisk(overallRisk)}
+                </span>
+              </div>
+              <p className="text-[0.75rem] text-ink-2 truncate">
+                {openCases.length > 0
+                  ? `${openCases.length} active issue${openCases.length === 1 ? "" : "s"}`
+                  : "Stable conditions"}
+              </p>
+            </div>
+
+            {/* FIELDS */}
+            <div className="border-r border-line pr-3 last:border-r-0">
+              <span className="text-caption">FIELDS</span>
+              <p className="num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold text-ink">
+                {farmList.length}
+              </p>
+              <p className="text-[0.75rem] text-ink-2">Registered parcels</p>
+            </div>
+
+            {/* AREA */}
+            <div className="border-r border-line pr-3 last:border-r-0">
+              <span className="text-caption">TOTAL AREA</span>
+              <p className="num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold text-ink">
+                {totalArea} <span className="text-[1rem] font-normal text-ink-2">ha</span>
+              </p>
+              <p className="text-[0.75rem] text-ink-2">Cultivated land</p>
+            </div>
+
+            {/* ACTIVE ALERTS */}
+            <div>
+              <span className="text-caption">ACTIVE ALERTS</span>
+              <p
+                className={cx(
+                  "num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold",
+                  activeAlertsCount > 0 ? "text-amber" : "text-leaf",
+                )}
+              >
+                {activeAlertsCount}
+              </p>
+              <p className="text-[0.75rem] text-ink-2">
+                {activeAlertsCount > 0 ? "Needs farmer review" : "No urgent alerts"}
+              </p>
             </div>
           </div>
-
-          <div className="border-r border-line pr-3 last:border-r-0">
-            <span className="text-caption">Fields Monitored</span>
-            <p className="num mt-1 font-display text-[1.25rem] font-bold text-ink">
-              {farmsLoading ? "…" : `${farms?.length || 3}`} <span className="text-[0.875rem] font-normal text-ink-2">({totalArea} ha)</span>
-            </p>
-          </div>
-
-          <div className="border-r border-line pr-3 last:border-r-0">
-            <span className="text-caption">Healthy Parcels</span>
-            <p className="num mt-1 font-display text-[1.25rem] font-bold text-leaf">
-              {farmsLoading ? "…" : healthyCount}
-            </p>
-          </div>
-
-          <div className="border-r border-line pr-3 last:border-r-0">
-            <span className="text-caption">Needs Attention</span>
-            <p className="num mt-1 font-display text-[1.25rem] font-bold text-alert">
-              {farmsLoading ? "…" : attentionCount}
-            </p>
-          </div>
-
-          <div className="col-span-2 sm:col-span-4 lg:col-span-1">
-            <span className="text-caption">Active Alerts</span>
-            <p className="num mt-1 font-display text-[1.25rem] font-bold text-amber">
-              {assessLoading ? "…" : openAlerts.length}
-            </p>
-          </div>
-        </div>
-      </div>
+        )}
+      </section>
 
       {/* =========================================================================
-          MAIN 2-COLUMN DASHBOARD GRID
+          NEW USER ONBOARDING BANNER (Zero-state when no fields registered)
       ========================================================================= */}
-      <div className="grid gap-6 lg:grid-cols-12">
-        {/* LEFT COLUMN (65% on Desktop) */}
-        <div className="space-y-6 lg:col-span-8">
-          {/* Registered Fields Table / Grid */}
-          <section className="border border-line bg-surface p-5">
+      {!loading && farmList.length === 0 && (
+        <section className="border border-forest/40 bg-surface p-6 md:p-8 text-center shadow-panel">
+          <div className="mx-auto max-w-lg">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-forest/10 text-forest mb-4">
+              <Sprout className="size-8" />
+            </div>
+            <span className="text-caption text-forest font-bold uppercase">Welcome to CropXense</span>
+            <h2 className="mt-1 font-expanded text-[1.5rem] font-bold text-ink">
+              You haven't registered any fields yet
+            </h2>
+            <p className="mt-2 text-[0.875rem] text-ink-2 leading-relaxed">
+              Start by adding your first agricultural field to begin crop-health monitoring, hyperlocal weather risk tracking, and expert agronomy advisories.
+            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                to="/farmer/fields"
+                className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-6 text-[0.9375rem] font-semibold text-surface shadow-sm hover:bg-[#0e2b20]"
+              >
+                <Plus className="size-4" />
+                <span>+ Register Your First Field</span>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* When the user has registered fields, show the 4 remaining core areas */}
+      {farmList.length > 0 && (
+        <>
+          {/* =====================================================================
+              2. TODAY'S ACTIONS
+              "What should I do today?"
+          ===================================================================== */}
+          <section className="border border-line bg-surface p-5 shadow-panel">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div>
-                <h2 className="font-display text-[1.125rem] font-semibold">My Registered Fields</h2>
-                <p className="text-[0.8125rem] text-ink-2">Parcel health and latest observation status</p>
+                <div className="flex items-center gap-2">
+                  <Activity className="size-4 text-forest" />
+                  <h2 className="font-display text-[1.125rem] font-bold text-ink">
+                    TODAY'S ACTIONS
+                  </h2>
+                </div>
+                <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                  Prioritized recommendations and scheduled field follow-ups
+                </p>
               </div>
-              <Link to="/farmer/fields" className="text-[0.8125rem] font-semibold text-forest hover:underline">
-                View all fields →
+
+              <Link
+                to="/farmer/crop-care"
+                className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
+              >
+                <span>View all actions</span>
+                <ArrowRight className="size-3.5" />
               </Link>
             </div>
 
-            {farmsLoading ? (
-              <div className="mt-4 space-y-3">
-                <Skeleton className="h-16 w-full" />
-                <Skeleton className="h-16 w-full" />
+            {loading ? (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-24 w-full" />
               </div>
-            ) : (
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-left text-[0.875rem]">
-                  <thead>
-                    <tr className="border-b border-line text-caption text-ink-2">
-                      <th className="pb-2 font-semibold">Field Name</th>
-                      <th className="pb-2 font-semibold">Crop & Variety</th>
-                      <th className="pb-2 font-semibold">Area</th>
-                      <th className="pb-2 font-semibold">Stage</th>
-                      <th className="pb-2 font-semibold">Health Status</th>
-                      <th className="pb-2 text-right font-semibold">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-line">
-                    {farms?.map((f) => (
-                      <tr key={f.id} className="group transition-colors hover:bg-surface-2">
-                        <td className="py-3 font-semibold text-ink">
-                          <div>
-                            <span>{f.name}</span>
-                            <span className="block text-[0.75rem] font-normal text-ink-2">{f.village}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 text-ink">{cropName(f.cropId)}</td>
-                        <td className="num py-3">{f.areaHa} ha</td>
-                        <td className="py-3 capitalize text-ink-2">{f.stage.replace("_", " ")}</td>
-                        <td className="py-3">
-                          <StatusChip status={HEALTH_TO_STATUS[f.health] || "healthy"} />
-                        </td>
-                        <td className="py-3 text-right">
-                          <Link
-                            to="/farmer/scan"
-                            className="inline-flex min-h-[34px] items-center gap-1 rounded-[var(--r)] border border-line bg-paper px-2.5 text-[0.75rem] font-semibold text-forest hover:bg-forest hover:text-surface"
-                          >
-                            <ScanLine className="size-3" />
-                            <span>Scan</span>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          {/* Active Alerts & Disease Detections */}
-          <section className="border border-line bg-surface p-5">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div>
-                <h2 className="font-display text-[1.125rem] font-semibold">Active Field Alerts & Threat Signals</h2>
-                <p className="text-[0.8125rem] text-ink-2">Candidate detections requiring observation</p>
-              </div>
-              <Link to="/farmer/advisories" className="text-[0.8125rem] font-semibold text-forest hover:underline">
-                All Advisories →
-              </Link>
-            </div>
-
-            {assessLoading ? (
-              <Skeleton className="mt-4 h-28 w-full" />
-            ) : openAlerts.length === 0 ? (
-              <div className="mt-4 flex items-center gap-3 border border-leaf/30 bg-leaf/5 p-4 text-[0.875rem] text-leaf">
+            ) : todayActions.length === 0 ? (
+              <div className="mt-4 flex items-center gap-3 border border-leaf/30 bg-leaf/5 p-4 text-leaf">
                 <CheckCircle2 className="size-5 shrink-0" />
-                <span>No active critical pest or disease outbreaks detected in your parcels today.</span>
+                <div>
+                  <p className="font-semibold text-[0.9375rem]">You're all caught up.</p>
+                  <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                    No urgent crop-health actions or overdue follow-ups today.
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                {openAlerts.map((alert) => (
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {todayActions.map((act, i) => (
                   <div
-                    key={alert.id}
-                    className="flex flex-col justify-between gap-4 border border-line bg-paper p-4 md:flex-row md:items-center"
+                    key={i}
+                    className="border border-line bg-paper p-4 flex flex-col justify-between hover:border-forest/50 transition-colors"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="num text-[0.75rem] text-ink-2">{alert.id}</span>
-                        <StatusChip status={alert.severity >= 4 ? "critical" : "watch"} />
-                        <span className="text-[0.75rem] text-ink-2 font-medium">Confidence: {alert.confidence}%</span>
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span
+                          className={cx(
+                            "text-[0.6875rem] font-bold uppercase rounded-[var(--r)] px-1.5 py-0.5",
+                            act.priority === "high"
+                              ? "bg-alert/15 text-alert"
+                              : act.priority === "medium"
+                                ? "bg-amber/15 text-amber"
+                                : "bg-leaf/15 text-leaf",
+                          )}
+                        >
+                          {tRisk(act.priority)}
+                        </span>
+                        <span className="text-[0.75rem] text-ink-2 capitalize">{act.type}</span>
                       </div>
-                      <h3 className="font-display text-[1rem] font-semibold text-ink">
-                        {alert.suspected}
+                      <h3 className="font-semibold text-ink text-[0.9375rem] line-clamp-1">
+                        {act.title}
                       </h3>
-                      <p className="text-[0.8125rem] text-ink-2">
-                        Detected via {alert.detectedVia.join(" + ")} · Affected area approx. {alert.affectedAreaHa} ha
+                      <p className="text-[0.8125rem] text-ink-2 mt-1 line-clamp-2">
+                        {act.detail}
                       </p>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
+                    <div className="mt-3 pt-2.5 border-t border-line">
                       <Link
-                        to="/farmer/advisories"
-                        className="inline-flex min-h-[40px] items-center gap-1 border border-forest bg-forest px-3 text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20]"
+                        to={act.link || "/farmer/crop-care"}
+                        className="inline-flex min-h-[32px] items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
                       >
-                        <span>View IPM Advisory</span>
-                        <ArrowUpRight className="size-3.5" />
+                        <span>
+                          {act.type === "scan"
+                            ? "Scan Now"
+                            : act.type === "followup"
+                              ? "Complete Follow-up"
+                              : "View Action"}
+                        </span>
+                        <ArrowRight className="size-3" />
                       </Link>
                     </div>
                   </div>
@@ -296,171 +417,292 @@ function FarmerHome() {
             )}
           </section>
 
-          {/* Latest IPM Advisory Snapshot */}
-          {activeAdvisory && (
-            <section className="border border-forest/40 bg-surface p-5">
-              <div className="flex items-center gap-2 text-forest">
-                <ShieldAlert className="size-5" />
-                <h2 className="font-display text-[1.125rem] font-semibold">
-                  Latest Extension Advisory
-                </h2>
-              </div>
-              <p className="mt-1 font-semibold text-[0.9375rem] text-ink">{activeAdvisory.title}</p>
-              <p className="text-[0.8125rem] text-ink-2">Window: {activeAdvisory.window}</p>
-
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="border border-line bg-paper p-3">
-                  <span className="text-caption text-forest">1. Cultural Action</span>
-                  <p className="mt-1 text-[0.8125rem] text-ink">{activeAdvisory.cultural[0]}</p>
-                </div>
-                <div className="border border-line bg-paper p-3">
-                  <span className="text-caption text-leaf">2. Biological Control</span>
-                  <p className="mt-1 text-[0.8125rem] text-ink">{activeAdvisory.biological[0]}</p>
-                </div>
-                <div className="border border-line bg-paper p-3">
-                  <span className="text-caption text-amber">3. Chemical Referral</span>
-                  <p className="mt-1 text-[0.8125rem] text-ink">{activeAdvisory.chemical[0]}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between border-t border-line pt-3 text-[0.8125rem]">
-                <span className="text-ink-2">Department of Agriculture, Maharashtra</span>
-                <Link to="/farmer/advisories" className="font-semibold text-forest hover:underline">
-                  Read complete guidance →
-                </Link>
-              </div>
-            </section>
-          )}
-        </div>
-
-        {/* RIGHT COLUMN (35% on Desktop) */}
-        <div className="space-y-6 lg:col-span-4">
-          {/* Weather & Disease Risk Index */}
-          <section className="border border-line bg-surface p-5">
+          {/* =====================================================================
+              3. MY FIELDS (Top 3 Relevant Fields)
+              "Which field needs attention?"
+          ===================================================================== */}
+          <section className="border border-line bg-surface p-5 shadow-panel">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div>
-                <h2 className="font-display text-[1.125rem] font-semibold">Today's Weather & Risk</h2>
-                <p className="text-[0.8125rem] text-ink-2 capitalize">{districtId} Block</p>
+                <div className="flex items-center gap-2">
+                  <Sprout className="size-4 text-forest" />
+                  <h2 className="font-display text-[1.125rem] font-bold text-ink">
+                    MY FIELDS
+                  </h2>
+                </div>
+                <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                  Showing top 3 fields needing attention · {totalArea} ha total monitored
+                </p>
               </div>
-              <Link to="/farmer/forecast" className="text-[0.8125rem] font-semibold text-forest hover:underline">
-                7-Day Forecast →
+
+              <Link
+                to="/farmer/fields"
+                className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
+              >
+                <span>View all {farmList.length} fields</span>
+                <ArrowRight className="size-3.5" />
               </Link>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-2 text-[0.8125rem]">
-              <div className="flex items-center gap-2 border border-line bg-paper p-2.5">
-                <Thermometer className="size-4 text-ink-2" />
-                <div>
-                  <span className="text-caption">Max Temp</span>
-                  <p className="num font-semibold">{weather.tMaxC}°C</p>
-                </div>
+            {loading ? (
+              <div className="mt-4 space-y-2">
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
+                <Skeleton className="h-14 w-full" />
               </div>
-
-              <div className="flex items-center gap-2 border border-line bg-paper p-2.5">
-                <Droplets className="size-4 text-water" />
-                <div>
-                  <span className="text-caption">Humidity</span>
-                  <p className="num font-semibold">{weather.rhPct}%</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 border border-line bg-paper p-2.5">
-                <CloudRain className="size-4 text-water" />
-                <div>
-                  <span className="text-caption">Rainfall (24h)</span>
-                  <p className="num font-semibold">{weather.rainfallMm} mm</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 border border-line bg-paper p-2.5">
-                <Wind className="size-4 text-ink-2" />
-                <div>
-                  <span className="text-caption">Wind Speed</span>
-                  <p className="num font-semibold">{weather.windKph} km/h</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 border border-amber/30 bg-amber/5 p-3 text-[0.8125rem]">
-              <p className="font-semibold text-amber">Fungal Pathogen Risk: HIGH</p>
-              <p className="mt-0.5 text-ink-2">
-                High leaf wetness ({weather.leafWetnessHrs} h) combined with {weather.rhPct}% relative humidity favors spore germination in cotton and soybean.
-              </p>
-            </div>
-          </section>
-
-          {/* Pest Trap Surveillance */}
-          <section className="border border-line bg-surface p-5">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div>
-                <h2 className="font-display text-[1.125rem] font-semibold">Pest Trap Activity</h2>
-                <p className="text-[0.8125rem] text-ink-2">Village Pheromone & Light Traps</p>
-              </div>
-              <Link to="/farmer/pests" className="text-[0.8125rem] font-semibold text-forest hover:underline">
-                Details →
-              </Link>
-            </div>
-
-            <div className="mt-4 space-y-3 text-[0.8125rem]">
-              {topTraps.length === 0 ? (
-                <p className="text-ink-2 text-[0.8125rem]">No trap readings recorded for your district yet.</p>
-              ) : (
-                topTraps.map(({ trap, count, threshold }) => {
-                  const pct = Math.min(Math.round((count / threshold) * 100), 100);
-                  const over = count >= threshold;
-                  const watch = count >= threshold * 0.7;
-                  return (
-                    <div key={trap.id} className="border border-line bg-paper p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-ink truncate">{trap.type} trap — {trap.id}</span>
-                        <span className={cx(
-                          "rounded-[var(--r)] px-1.5 py-0.5 text-[0.6875rem] font-bold shrink-0 ml-2",
-                          over ? "bg-alert/15 text-alert" : watch ? "bg-amber/15 text-amber" : "bg-leaf/15 text-leaf",
-                        )}>
-                          {over ? "Above ETL" : watch ? "Watch" : "Safe"}
-                        </span>
+            ) : (
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                {topFields.map((f) => (
+                  <div
+                    key={f.id}
+                    className="border border-line bg-paper p-4 flex flex-col justify-between hover:border-forest/50 transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="num text-[0.75rem] text-ink-2">{f.id}</span>
+                        <StatusChip status={HEALTH_TO_STATUS[f.health] || "healthy"} />
                       </div>
-                      <div className="num mt-2 flex items-baseline justify-between text-ink-2">
-                        <span>Count: <strong className="text-ink">{count}</strong></span>
-                        <span>ETL: {threshold}</span>
-                      </div>
-                      <div className="mt-1.5 h-1.5 w-full bg-surface-2">
-                        <div
-                          className={over ? "h-full bg-alert" : watch ? "h-full bg-amber" : "h-full bg-leaf"}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                      <h3 className="font-bold text-ink text-[1rem]">{f.name}</h3>
+                      <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                        {tCrop(f.cropId)} · {f.areaHa} ha
+                      </p>
+                      <p className="text-[0.75rem] text-ink-2 mt-0.5">
+                        {f.village} · {tStage(f.stage)}
+                      </p>
                     </div>
-                  );
-                })
-              )}
+
+                    <div className="mt-3.5 pt-2.5 border-t border-line flex items-center justify-between">
+                      <Link
+                        to="/farmer/scan"
+                        search={{ fieldId: f.id, cropId: f.cropId } as any}
+                        className="inline-flex min-h-[30px] items-center gap-1 rounded-[var(--r)] border border-line bg-surface px-2.5 text-[0.75rem] font-semibold text-forest hover:bg-forest hover:text-surface transition-colors"
+                      >
+                        <ScanLine className="size-3" />
+                        <span>Scan</span>
+                      </Link>
+                      <Link
+                        to="/farmer/fields"
+                        className="text-[0.75rem] text-ink-2 hover:text-forest hover:underline"
+                      >
+                        Details →
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* =====================================================================
+              4. TODAY'S WEATHER & RISK
+              "What could affect my crop?"
+          ===================================================================== */}
+          <section className="border border-line bg-surface p-5 shadow-panel">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <CloudRain className="size-4 text-forest" />
+                  <h2 className="font-display text-[1.125rem] font-bold text-ink">
+                    TODAY'S WEATHER & RISK
+                  </h2>
+                </div>
+                <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                  Hyperlocal microclimate observation for {tDistrict(districtId)}
+                </p>
+              </div>
+
+              <Link
+                to="/farmer/forecast"
+                className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
+              >
+                <span>View 7-Day Forecast</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-12">
+              {/* Weather Stats Strip */}
+              <div className="grid grid-cols-3 gap-3 lg:col-span-6">
+                <div className="border border-line bg-paper p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
+                    <Thermometer className="size-4" />
+                    <span className="text-caption">TEMP</span>
+                  </div>
+                  <p className="num text-[1.25rem] font-bold text-ink">{weather.tMaxC}°C</p>
+                  <p className="text-[0.7rem] text-ink-2">Min {weather.tMinC}°C</p>
+                </div>
+
+                <div className="border border-line bg-paper p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
+                    <Droplets className="size-4" />
+                    <span className="text-caption">HUMIDITY</span>
+                  </div>
+                  <p className="num text-[1.25rem] font-bold text-water">{weather.rhPct}%</p>
+                  <p className="text-[0.7rem] text-ink-2">
+                    {weather.rhPct >= 80 ? "High RH" : "Normal"}
+                  </p>
+                </div>
+
+                <div className="border border-line bg-paper p-3 text-center">
+                  <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
+                    <CloudRain className="size-4" />
+                    <span className="text-caption">RAINFALL</span>
+                  </div>
+                  <p className="num text-[1.25rem] font-bold text-forest">{weather.rainfallMm} mm</p>
+                  <p className="text-[0.7rem] text-ink-2">24h observed</p>
+                </div>
+              </div>
+
+              {/* Simple Risk Conclusion Box */}
+              <div className="border border-line bg-surface-2 p-4 lg:col-span-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={cx(
+                        "text-[0.6875rem] font-bold uppercase rounded-[var(--r)] px-1.5 py-0.5",
+                        weather.rhPct >= 75 || weather.rainfallMm > 20
+                          ? "bg-amber/15 text-amber"
+                          : "bg-leaf/15 text-leaf",
+                      )}
+                    >
+                      {weather.rhPct >= 75 || weather.rainfallMm > 20 ? "HIGH RISK" : "LOW RISK"}
+                    </span>
+                    <span className="text-[0.875rem] font-bold text-ink">
+                      Fungal & Sucking Pest Pressure
+                    </span>
+                  </div>
+                  <p className="text-[0.8125rem] text-ink-2 mt-2 leading-relaxed">
+                    {weather.rhPct >= 75 || weather.rainfallMm > 20
+                      ? `High atmospheric humidity (${weather.rhPct}%) and recent rainfall (${weather.rainfallMm} mm) create favorable conditions for fungal spore germination and sucking pest activity.`
+                      : "Current microclimate conditions are optimal with low immediate fungal disease risk."}
+                  </p>
+                </div>
+
+                <div className="mt-3 pt-2 border-t border-line flex items-center justify-between">
+                  <span className="text-[0.75rem] text-ink-2">
+                    IPM tip: Inspect lower leaf canopy for early symptoms
+                  </span>
+                  <Link
+                    to="/farmer/forecast"
+                    className="text-[0.75rem] font-semibold text-forest hover:underline"
+                  >
+                    Details →
+                  </Link>
+                </div>
+              </div>
             </div>
           </section>
 
-          {/* Assigned Extension Officer */}
-          <section className="border border-line bg-surface p-5">
-            <h2 className="font-display text-[1.125rem] font-semibold">Assigned Plant Protection Officer</h2>
-            <p className="text-[0.8125rem] text-ink-2">Department of Agriculture, Akola Subdivision</p>
+          {/* =====================================================================
+              5. LATEST CROP HEALTH ALERT
+              "What problem should I know about?"
+          ===================================================================== */}
+          <section className="border border-line bg-surface p-5 shadow-panel">
+            <div className="flex items-center justify-between border-b border-line pb-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="size-4 text-amber" />
+                  <h2 className="font-display text-[1.125rem] font-bold text-ink">
+                    LATEST CROP HEALTH ALERT
+                  </h2>
+                </div>
+                <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                  Most critical active case requiring agronomic attention
+                </p>
+              </div>
 
-            <div className="mt-4 flex items-center gap-3 border border-line bg-paper p-3">
-              <div className="flex size-10 items-center justify-center rounded-[var(--r)] bg-forest text-surface font-bold">
-                AD
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-[0.875rem] text-ink">{DEMO_OFFICER.name}</p>
-                <p className="text-[0.75rem] text-ink-2">Senior Agriculture Officer</p>
-                <a
-                  href={`tel:${DEMO_OFFICER.phone}`}
-                  className="mt-1 inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
-                >
-                  <Phone className="size-3" />
-                  <span className="num">{DEMO_OFFICER.phone}</span>
-                </a>
-              </div>
+              <Link
+                to="/farmer/crop-care"
+                className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
+              >
+                <span>View all cases in Crop Care</span>
+                <ArrowRight className="size-3.5" />
+              </Link>
             </div>
+
+            {loading ? (
+              <Skeleton className="mt-4 h-32 w-full" />
+            ) : !latestAlert ? (
+              <div className="mt-4 flex items-center gap-3 border border-leaf/30 bg-leaf/5 p-4 text-leaf">
+                <CheckCircle2 className="size-5 shrink-0" />
+                <div>
+                  <p className="font-semibold text-[0.9375rem]">No Active Alerts</p>
+                  <p className="text-[0.8125rem] text-ink-2 mt-0.5">
+                    All registered parcels are currently clear of active disease or pest flags.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-4 border border-amber/30 bg-amber/5 p-4 md:p-5">
+                <div className="flex flex-col justify-between gap-3 md:flex-row md:items-start">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[0.6875rem] font-bold uppercase rounded-[var(--r)] bg-alert/15 text-alert px-1.5 py-0.5">
+                        {latestAlert.riskAssessment?.overallRisk?.toUpperCase() || "HIGH RISK"}
+                      </span>
+                      <span className="num text-[0.75rem] text-ink-2">Case ID: {latestAlert.id}</span>
+                    </div>
+
+                    <h3 className="font-bold text-ink text-[1.125rem] flex items-center gap-2">
+                      <AlertCircle className="size-4 text-alert" />
+                      <span>{latestAlert.suspected}</span>
+                    </h3>
+
+                    <p className="text-[0.875rem] text-ink-2 mt-0.5">
+                      {tCrop(latestAlert.cropId)} · {latestAlertFarm?.name || latestAlert.farmId} (
+                      {latestAlertFarm?.village || "Amravati"})
+                    </p>
+                  </div>
+
+                  {/* AI Assessment Badges */}
+                  <div className="flex flex-wrap gap-2 md:justify-end">
+                    <div className="border border-line bg-surface px-3 py-1.5 text-right">
+                      <span className="text-caption">AI CONFIDENCE</span>
+                      <p className="num font-bold text-ink text-[0.9375rem]">
+                        {latestAlert.confidence}%
+                      </p>
+                    </div>
+                    <div className="border border-line bg-surface px-3 py-1.5 text-right">
+                      <span className="text-caption">GROWTH STAGE</span>
+                      <p className="font-bold text-ink text-[0.9375rem] capitalize">
+                        {tStage(latestAlertFarm?.stage || "pod_fill")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Reason Explanation */}
+                <div className="mt-3.5 border-t border-amber/20 pt-3">
+                  <p className="text-[0.8125rem] text-ink leading-relaxed">
+                    <span className="font-semibold text-ink">Why: </span>
+                    Visible symptoms ({latestAlert.evidence?.map((e) => e.label).join(", ") || "leaf discoloration and curl"}) combined with favourable local microclimate conditions.
+                  </p>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Link
+                    to="/farmer/crop-care"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 border border-forest bg-forest px-4 text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20] shadow-sm transition-colors"
+                  >
+                    <Eye className="size-3.5" />
+                    <span>View Assessment & Advisory</span>
+                  </Link>
+
+                  <Link
+                    to="/farmer/scan"
+                    search={{ fieldId: latestAlert.farmId, cropId: latestAlert.cropId } as any}
+                    className="inline-flex min-h-[38px] items-center gap-1.5 border border-line bg-surface px-4 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2 transition-colors"
+                  >
+                    <ScanLine className="size-3.5 text-forest" />
+                    <span>Start Re-Scan / Follow-up</span>
+                  </Link>
+                </div>
+              </div>
+            )}
           </section>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

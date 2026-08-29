@@ -20,7 +20,8 @@ import {
 import { Skeleton } from "@/components/ui/Card";
 import { LANGS, useT } from "@/i18n";
 import { useAsync } from "@/hooks/useAsync";
-import { getDemoFarms, DEMO_OFFICER } from "@/data/farmerDemo";
+import { getFarmerFarms } from "@/services";
+import { DEMO_OFFICER } from "@/data/farmerDemo";
 import { useAuth } from "@/auth/AuthContext";
 
 export const Route = createFileRoute("/farmer/profile")({
@@ -44,7 +45,7 @@ export const Route = createFileRoute("/farmer/profile")({
 function FarmerProfilePage() {
   const { user, logout } = useAuth();
   const { lang, setLang } = useT();
-  const { data: farms, loading } = useAsync(() => getDemoFarms(), []);
+  const { data: farms, loading } = useAsync(() => getFarmerFarms(user), [user]);
   const primaryFarm = farms?.[0];
 
   const totalArea = (farms ?? []).reduce((acc, f) => acc + f.areaHa, 0).toFixed(1);
@@ -139,6 +140,30 @@ function FarmerProfilePage() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Alert & Notification Subscriptions */}
+          <div className="border border-line bg-surface p-5">
+            <h2 className="font-display text-[1.125rem] font-semibold border-b border-line pb-3">
+              Direct Advisory & Weather Subscriptions
+            </h2>
+            <div className="mt-4 space-y-3 text-[0.8125rem]">
+              {[
+                { title: "Severe Weather & Rain Warning Alerts", desc: "SMS warnings triggered when leaf wetness & RH cross fungal risk threshold.", enabled: true },
+                { title: "Village Pest Trap Surge Notifications", desc: "Alerts when nearby light/pheromone traps cross Economic Thresholds.", enabled: true },
+                { title: "State Extension Scheme & Subsidy Updates", desc: "Bi-weekly updates from Maharashtra Department of Agriculture.", enabled: false },
+              ].map((sub, i) => (
+                <div key={i} className="flex items-center justify-between border border-line bg-paper p-3 rounded-[var(--r)]">
+                  <div>
+                    <p className="font-semibold text-ink">{sub.title}</p>
+                    <p className="text-[0.75rem] text-ink-2 mt-0.5">{sub.desc}</p>
+                  </div>
+                  <span className={`rounded-[var(--r)] px-2 py-0.5 text-[0.6875rem] font-bold ${sub.enabled ? "bg-leaf/15 text-leaf" : "bg-surface-2 text-ink-2"}`}>
+                    {sub.enabled ? "Subscribed" : "Disabled"}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
