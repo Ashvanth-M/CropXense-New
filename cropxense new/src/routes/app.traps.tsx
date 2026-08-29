@@ -220,7 +220,7 @@ function TrapsPage() {
           <table className="w-full min-w-[760px] border-collapse text-[0.875rem]">
             <thead className="bg-surface-2">
               <tr>
-                {[t("field.caseId"), t("field.village"), t("risk.pest"), t("pests.currentCount"), "ETL", t("field.health"), t("pests.trend")].map((h) => (
+                {[t("field.caseId"), t("field.village"), t("risk.pest"), t("pests.trend"), "ETL", t("field.health"), t("pests.trend")].map((h) => (
                   <th key={h} scope="col" className="text-caption px-3 py-2 text-left">
                     {h}
                   </th>
@@ -264,7 +264,7 @@ function TrapsPage() {
             </p>
             <p className="font-semibold text-ink">{threatName(open.pestId)}</p>
             <div className="border border-line p-3">
-              <span className="text-caption">{t("pests.currentCount")}</span>
+              <span className="text-caption">{t("pests.trend")}</span>
               <p className="num text-[1.5rem] font-bold">{detailLast?.count ?? 0}</p>
               <p className="text-[0.75rem] text-ink-2">ETL threshold: {detailLast?.threshold ?? 1}</p>
             </div>

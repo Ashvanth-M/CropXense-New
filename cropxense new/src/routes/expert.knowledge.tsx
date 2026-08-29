@@ -1,203 +1,462 @@
 /**
- * /expert/knowledge — Maharashtra Crop Disease Knowledge Base & Diagnostic Reference.
+ * /expert/knowledge — National Crop Disease Knowledge Base & Diagnostic Reference.
  *
  * Scientific encyclopedia of regional pathogens, lesion morphology markers,
- * host crop vulnerabilities, and state-approved IPM chemistries.
+ * host crop vulnerabilities, lookalike differential diagnosis, and IPM controls.
  */
 
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
 import {
   Search,
-  ShieldAlert,
+  BookOpen,
+  ChevronRight,
+  CheckCircle2,
+  AlertTriangle,
+  Microscope,
+  FlaskConical,
+  Sprout,
+  Leaf,
 } from "lucide-react";
-import { DISEASES } from "@/data/reference";
+import { DISEASES, CROPS, PESTS } from "@/data/reference";
+import { getPathologySpecimen } from "@/data/pathologySpecimens";
+import { SpecimenViewer } from "@/components/expert/SpecimenViewer";
+import { cx } from "@/lib/cx";
 import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/expert/knowledge")({
   head: () => ({
     meta: [
-      { title: "Disease Knowledge Base — Expert Validation" },
+      { title: "Disease Knowledge Base & Pathology Reference — Expert Validation" },
       {
         name: "description",
-        content: "Reference diagnostic manual of Maharashtra crop pathogens, fungal leaf spots, and IPM controls.",
+        content: "Reference diagnostic manual of Indian crop pathogens, fungal leaf spots, differential taxonomy, and IPM protocols.",
       },
     ],
   }),
   component: ExpertKnowledgePage,
 });
 
+export type ThreatItem = {
+  id: string;
+  name: string;
+  category: "disease" | "pest";
+  scientificName: string;
+  cropIds: string[];
+  favourable?: string;
+  cultural?: string[];
+  biological?: string[];
+  chemical?: string[];
+  etl?: string;
+};
+
+const ALL_TAXA: ThreatItem[] = [
+  ...DISEASES.map((d) => ({
+    id: d.id,
+    name: d.name,
+    category: "disease" as const,
+    scientificName: d.pathogen,
+    cropIds: d.cropIds,
+    favourable: d.favourable,
+    cultural: d.cultural,
+    biological: d.biological,
+    chemical: d.chemical,
+  })),
+  ...PESTS.map((p) => ({
+    id: p.id,
+    name: p.name,
+    category: "pest" as const,
+    scientificName: p.scientific,
+    cropIds: p.cropIds,
+    etl: p.etl,
+    cultural: p.cultural,
+    biological: p.biological,
+    chemical: p.chemical,
+  })),
+];
+
 function ExpertKnowledgePage() {
   const { t, tCrop } = useT();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDiseaseId, setSelectedDiseaseId] = useState<string>(DISEASES[0]?.id || "bacterial_blight");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "disease" | "pest">("all");
+  const [cropFilter, setCropFilter] = useState<string>("");
+  const [selectedThreatId, setSelectedThreatId] = useState<string>("bacterial_blight");
+  const [activeTab, setActiveTab] = useState<"overview" | "differential" | "ipm" | "microscope">("overview");
 
-  const filteredDiseases = useMemo(() => {
+  const filteredThreats = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return DISEASES;
-    return DISEASES.filter((d) => {
-      const matchName = d.name.toLowerCase().includes(q);
-      const matchPathogen = (d.pathogen || "").toLowerCase().includes(q);
-      const matchCrops = (d.cropIds || []).some((c) => tCrop(c).toLowerCase().includes(q));
-      return matchName || matchPathogen || matchCrops;
-    });
-  }, [searchQuery, tCrop]);
+    return ALL_TAXA.filter((taxon) => {
+      const matchCat = categoryFilter === "all" || taxon.category === categoryFilter;
+      const matchCrop = !cropFilter || taxon.cropIds.includes(cropFilter);
+      const matchSearch =
+        !q ||
+        taxon.name.toLowerCase().includes(q) ||
+        taxon.scientificName.toLowerCase().includes(q) ||
+        taxon.cropIds.some((c) => tCrop(c).toLowerCase().includes(q));
 
-  const selectedDisease = useMemo(() => {
-    return DISEASES.find((d) => d.id === selectedDiseaseId) || filteredDiseases[0] || DISEASES[0]!;
-  }, [selectedDiseaseId, filteredDiseases]);
+      return matchCat && matchCrop && matchSearch;
+    });
+  }, [searchQuery, categoryFilter, cropFilter, tCrop]);
+
+  const selectedThreat = useMemo(() => {
+    return ALL_TAXA.find((item) => item.id === selectedThreatId) || filteredThreats[0] || ALL_TAXA[0]!;
+  }, [selectedThreatId, filteredThreats]);
+
+  const specimen = getPathologySpecimen(selectedThreat?.id ?? "bacterial_blight");
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Banner */}
       <div className="border border-line bg-surface p-5 md:p-6">
-        <span className="text-caption text-forest">{t("nav.diseaseKnowledge")}</span>
-        <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">{t("expert.knowledgeTitle")}</h1>
-        <p className="mt-1 text-[0.875rem] text-ink-2">
-          {t("role.expertDesc")}
-        </p>
+        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div>
+            <span className="text-caption text-forest">{t("nav.diseaseKnowledge")}</span>
+            <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">
+              {t("expert.knowledgeTitle")}
+            </h1>
+            <p className="mt-1 text-[0.875rem] text-ink-2">
+              {t("role.expertDesc")}
+            </p>
+          </div>
 
-        {/* Search Input */}
-        <div className="mt-4 relative max-w-md">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-2" />
-          <input
-            type="text"
-            placeholder={t("fields.searchPlaceholder")}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full border border-line bg-paper py-2 pl-9 pr-3 text-[0.8125rem] text-ink outline-none focus:border-forest"
-          />
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper px-3 py-1 text-[0.8125rem] font-semibold text-forest">
+              <BookOpen className="size-3.5" />
+              <span>{ALL_TAXA.length} {t("expert.knowledgeTitle")}</span>
+            </span>
+          </div>
+        </div>
+
+        {/* Filter and Search Bar */}
+        <div className="mt-5 grid gap-3 border-t border-line pt-4 sm:grid-cols-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-2" />
+            <input
+              type="text"
+              placeholder={t("fields.searchPlaceholder")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full border border-line bg-paper py-2 pl-9 pr-3 text-[0.8125rem] text-ink outline-none focus:border-forest"
+            />
+          </div>
+
+          {/* Category Filter */}
+          <div>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as any)}
+              className="w-full border border-line bg-paper py-2 px-3 text-[0.8125rem] text-ink outline-none focus:border-forest"
+            >
+              <option value="all">{t("common.all")}</option>
+              <option value="disease">{t("risk.disease")}</option>
+              <option value="pest">{t("risk.pest")}</option>
+            </select>
+          </div>
+
+          {/* Crop Filter */}
+          <div>
+            <select
+              value={cropFilter}
+              onChange={(e) => setCropFilter(e.target.value)}
+              className="w-full border border-line bg-paper py-2 px-3 text-[0.8125rem] text-ink outline-none focus:border-forest"
+            >
+              <option value="">{t("common.all")} ({CROPS.length})</option>
+              {CROPS.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {tCrop(c.id)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Main 2-Column Knowledge Browser */}
       <div className="grid gap-6 lg:grid-cols-12">
-        {/* Left: Disease List (35%) */}
+        {/* Left: Pathogen Directory (35%) */}
         <div className="space-y-2 lg:col-span-4">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-display text-[1rem] font-semibold text-ink">
-              {t("expert.knowledgeTitle")} ({filteredDiseases.length})
+              {t("expert.knowledgeTitle")} ({filteredThreats.length})
             </h2>
           </div>
 
-          <div className="space-y-2 max-h-[680px] overflow-y-auto pr-1">
-            {filteredDiseases.map((d) => {
-              const isSelected = selectedDisease?.id === d.id;
-              const cropsList = (d.cropIds || []).map((c) => tCrop(c)).join(", ");
+          <div className="space-y-2 max-h-[760px] overflow-y-auto pr-1">
+            {filteredThreats.map((d) => {
+              const isSelected = selectedThreat?.id === d.id;
+              const cropsList = d.cropIds.map((c) => tCrop(c)).join(", ");
 
               return (
                 <button
                   key={d.id}
                   type="button"
-                  onClick={() => setSelectedDiseaseId(d.id)}
-                  className={`w-full text-left rounded-[var(--r)] border p-3.5 transition-all ${
+                  onClick={() => setSelectedThreatId(d.id)}
+                  className={cx(
+                    "w-full text-left rounded-[var(--r)] border p-3 transition-all",
                     isSelected
-                      ? "border-forest bg-surface ring-2 ring-forest shadow-panel"
-                      : "border-line bg-surface hover:bg-surface-2"
-                  }`}
+                      ? "border-forest bg-surface ring-2 ring-forest shadow-md"
+                      : "border-line bg-surface hover:bg-surface-2",
+                  )}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-display text-[0.9375rem] font-bold text-ink">{d.name}</span>
-                    <span className="num rounded-[var(--r)] bg-surface-2 px-2 py-0.5 text-[0.6875rem] font-bold text-forest">
-                      {d.id}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    {/* Real Crop Photo Thumbnail */}
+                    <div className="size-14 shrink-0 rounded overflow-hidden border border-line bg-[#0c120e]">
+                      <img
+                        src={`/crops/${d.id}.jpg`}
+                        alt={d.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = "/crops/bacterial_blight.jpg";
+                        }}
+                      />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="font-display text-[0.875rem] font-bold text-ink truncate">
+                          {d.name}
+                        </span>
+                        <span
+                          className={cx(
+                            "inline-flex items-center px-1.5 py-0.2 text-[0.625rem] font-semibold uppercase border rounded shrink-0",
+                            d.category === "disease"
+                              ? "border-alert/30 bg-alert/10 text-alert"
+                              : "border-amber/30 bg-amber/10 text-amber",
+                          )}
+                        >
+                          {d.category}
+                        </span>
+                      </div>
+
+                      <p className="font-mono text-[0.6875rem] italic text-ink-2 truncate">
+                        {d.scientificName}
+                      </p>
+
+                      <div className="mt-1 flex items-center justify-between text-[0.6875rem] text-ink-2 border-t border-line/40 pt-1">
+                        <span className="truncate">{t("field.crop")}: <strong className="text-ink">{cropsList}</strong></span>
+                        <ChevronRight className="size-3.5 text-forest shrink-0" />
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-0.5 text-[0.75rem] italic text-ink-2">{d.pathogen}</p>
-                  <p className="mt-1 text-[0.75rem] text-ink-2">
-                    {t("field.crop")}: <strong className="text-ink">{cropsList || "Multi-crop"}</strong>
-                  </p>
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Right: Pathogen Monograph & Guidelines (65%) */}
+        {/* Right: Scientific Pathological Dossier (65%) */}
         <div className="space-y-5 lg:col-span-8">
-          {selectedDisease ? (
-            <div className="border border-line bg-surface p-5 md:p-6 space-y-5">
+          {selectedThreat ? (
+            <div className="border border-line bg-surface p-5 md:p-6 space-y-6">
+              {/* Pathogen Title & Taxonomy */}
               <div className="border-b border-line pb-4">
-                <div className="flex items-center gap-2">
-                  <span className="num text-[0.75rem] font-bold text-forest">{selectedDisease.id}</span>
-                  <span className="rounded-[var(--r)] bg-forest/10 px-2 py-0.5 text-[0.6875rem] font-bold uppercase text-forest">
-                    {t("expert.knowledgeTitle")}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 text-[0.75rem] font-bold border border-forest bg-forest text-surface rounded uppercase">
+                    {specimen.pathogenType}
+                  </span>
+                  <span className="text-[0.8125rem] text-ink-2">
+                    {t("field.crop")}: <strong className="text-ink">{selectedThreat.cropIds.map((c) => tCrop(c)).join(", ")}</strong>
                   </span>
                 </div>
-                <h2 className="mt-1 font-expanded text-[1.5rem] text-ink">{selectedDisease.name}</h2>
-                <p className="text-[0.875rem] italic text-ink-2">{selectedDisease.pathogen}</p>
+
+                <h2 className="mt-2 font-expanded text-[1.75rem] font-bold text-ink">
+                  {selectedThreat.name}
+                </h2>
+                <p className="font-mono text-[0.9375rem] italic text-forest font-semibold">
+                  {selectedThreat.scientificName}
+                </p>
               </div>
 
-              {/* Diagnostic Marker Info */}
-              <div className="grid gap-4 sm:grid-cols-2 text-[0.875rem]">
-                <div className="border border-line bg-paper p-3.5">
-                  <span className="text-caption text-forest">{t("field.crop")}</span>
-                  <p className="mt-1 font-semibold text-ink">
-                    {(selectedDisease.cropIds || []).map((c) => tCrop(c)).join(", ")}
-                  </p>
-                </div>
-
-                <div className="border border-line bg-paper p-3.5">
-                  <span className="text-caption text-forest">{t("farmer.weatherRisk")}</span>
-                  <p className="mt-1 text-[0.8125rem] text-ink">
-                    {selectedDisease.favourable || "High relative humidity with warm canopy temperatures."}
-                  </p>
-                </div>
+              {/* Sub-Navigation Tabs */}
+              <div className="flex items-center gap-2 border-b border-line pb-2">
+                {[
+                  { id: "overview", label: "Diagnostic Overview & Visual Specimen" },
+                  { id: "differential", label: "Differential Diagnosis" },
+                  { id: "ipm", label: t("nav.advisories") },
+                  { id: "microscope", label: "Microscopic Markers" },
+                ].map((tabItem) => (
+                  <button
+                    key={tabItem.id}
+                    type="button"
+                    onClick={() => setActiveTab(tabItem.id as any)}
+                    className={cx(
+                      "px-3 py-1.5 text-[0.8125rem] font-semibold transition-colors rounded-[var(--r)]",
+                      activeTab === tabItem.id
+                        ? "bg-forest text-surface"
+                        : "border border-line bg-paper text-ink hover:bg-surface-2",
+                    )}
+                  >
+                    {tabItem.label}
+                  </button>
+                ))}
               </div>
 
-              {/* IPM Protocols */}
-              <div className="border border-forest/30 bg-surface-2 p-5 space-y-4">
-                <h3 className="font-display text-[1rem] font-bold text-forest flex items-center gap-2">
-                  <ShieldAlert className="size-4" />
-                  <span>{t("nav.advisories")}</span>
-                </h3>
+              {/* TAB 1: DIAGNOSTIC OVERVIEW & SPECIMEN */}
+              {activeTab === "overview" && (
+                <div className="space-y-5">
+                  {/* Visual Specimen Viewer */}
+                  <div>
+                    <span className="text-caption text-forest mb-1.5 block">
+                      {t("expert.imageAnalysis")}
+                    </span>
+                    <SpecimenViewer
+                      threatId={selectedThreat.id}
+                      threatName={selectedThreat.name}
+                      cropName={selectedThreat.cropIds.map((c) => tCrop(c)).join(", ")}
+                      confidence={94}
+                    />
+                  </div>
 
-                <div className="space-y-3 text-[0.8125rem]">
-                  {/* Cultural */}
-                  {selectedDisease.cultural && selectedDisease.cultural.length > 0 && (
-                    <div className="border border-line bg-paper p-3">
-                      <strong className="block font-semibold text-forest">1. {t("advisory.cultural")}</strong>
-                      <ul className="mt-1 space-y-1 text-ink">
-                        {selectedDisease.cultural.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-forest font-bold">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
+                  {/* Diagnostic Signature */}
+                  <div className="border border-line bg-paper p-4 space-y-1.5">
+                    <span className="text-caption text-forest font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="size-3.5" />
+                      <span>{t("expert.caseEvidence")}</span>
+                    </span>
+                    <p className="text-[0.875rem] text-ink leading-relaxed font-medium">
+                      {specimen.diagnosticSignature}
+                    </p>
+                  </div>
+
+                  {/* Environmental Window */}
+                  {selectedThreat.favourable && (
+                    <div className="border border-line bg-paper p-4 space-y-1.5">
+                      <span className="text-caption text-water font-semibold flex items-center gap-1">
+                        <FlaskConical className="size-3.5" />
+                        <span>{t("farmer.weatherRisk")}</span>
+                      </span>
+                      <p className="text-[0.875rem] text-ink leading-relaxed">
+                        {selectedThreat.favourable}
+                      </p>
                     </div>
                   )}
 
-                  {/* Biological */}
-                  {selectedDisease.biological && selectedDisease.biological.length > 0 && (
-                    <div className="border border-line bg-paper p-3">
-                      <strong className="block font-semibold text-leaf">2. {t("advisory.biological")}</strong>
-                      <ul className="mt-1 space-y-1 text-ink">
-                        {selectedDisease.biological.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-leaf font-bold">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Chemical */}
-                  {selectedDisease.chemical && selectedDisease.chemical.length > 0 && (
-                    <div className="border border-line bg-paper p-3">
-                      <strong className="block font-semibold text-amber">3. {t("advisory.chemical")}</strong>
-                      <ul className="mt-1 space-y-1 text-ink">
-                        {selectedDisease.chemical.map((item, i) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-amber font-bold">•</span>
-                            <span>{item}</span>
-                          </li>
-                        ))}
-                      </ul>
+                  {/* Economic Threshold Level (ETL) */}
+                  {selectedThreat.etl && (
+                    <div className="border border-line bg-paper p-4 space-y-1.5">
+                      <span className="text-caption text-amber font-semibold flex items-center gap-1">
+                        <AlertTriangle className="size-3.5" />
+                        <span>Economic Threshold Level (ETL)</span>
+                      </span>
+                      <p className="text-[0.875rem] text-ink font-semibold">
+                        {selectedThreat.etl}
+                      </p>
                     </div>
                   )}
                 </div>
-              </div>
+              )}
+
+              {/* TAB 2: DIFFERENTIAL DIAGNOSIS */}
+              {activeTab === "differential" && (
+                <div className="space-y-4">
+                  <div className="border border-line bg-paper p-4">
+                    <h3 className="font-display font-semibold text-ink text-[1rem]">
+                      Differential Diagnosis & Lookalike Disambiguation Matrix
+                    </h3>
+                    <p className="text-[0.8125rem] text-ink-2 mt-1">
+                      Key diagnostic criteria to separate {selectedThreat.name} from similar abiotic stresses or secondary pathogens.
+                    </p>
+                  </div>
+
+                  <div className="overflow-x-auto border border-line">
+                    <table className="w-full text-left text-[0.8125rem]">
+                      <thead>
+                        <tr className="border-b border-line bg-surface-2 text-caption text-ink-2">
+                          <th className="p-3 font-semibold">Candidate Condition</th>
+                          <th className="p-3 font-semibold">Distinguishing Foliar Features</th>
+                          <th className="p-3 font-semibold">Verification</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-line bg-surface">
+                        <tr>
+                          <td className="p-3 font-bold text-forest">{selectedThreat.name} ({t("caseStatus.expert_confirmed")})</td>
+                          <td className="p-3 text-ink">{specimen.diagnosticSignature}</td>
+                          <td className="p-3 text-ink-2 font-mono text-xs">{specimen.microscopeFeatures[0]}</td>
+                        </tr>
+                        <tr className="bg-surface-2/40">
+                          <td className="p-3 font-semibold text-ink">Abiotic Leaf Scorch / Heat Stress</td>
+                          <td className="p-3 text-ink-2">Marginal yellowing without necrotic water-soaked halos; uniform across sun-exposed canopy.</td>
+                          <td className="p-3 text-ink-2 font-mono text-xs">No bacterial streaming under magnification.</td>
+                        </tr>
+                        <tr>
+                          <td className="p-3 font-semibold text-ink">Nutrient Deficiency (Fe / Mg Chlorosis)</td>
+                          <td className="p-3 text-ink-2">Interveinal yellowing with prominent green veins; symmetrical across leaf pairs.</td>
+                          <td className="p-3 text-ink-2 font-mono text-xs">Foliar response to micronutrient spray.</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 3: STANDARDIZED IPM PROTOCOLS */}
+              {activeTab === "ipm" && (
+                <div className="space-y-4">
+                  {/* Cultural Controls */}
+                  <div className="border border-line bg-paper p-4 space-y-2">
+                    <span className="text-caption text-forest font-semibold flex items-center gap-1.5">
+                      <Sprout className="size-4" />
+                      <span>1. {t("advisory.cultural")}</span>
+                    </span>
+                    <ul className="space-y-1.5 text-[0.8125rem] text-ink pl-4 list-disc">
+                      {(selectedThreat.cultural ?? ["Crop rotation with non-host crops", "Field sanitation and destruction of infected stubble"]).map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Biological Controls */}
+                  <div className="border border-line bg-paper p-4 space-y-2">
+                    <span className="text-caption text-leaf font-semibold flex items-center gap-1.5">
+                      <Leaf className="size-4" />
+                      <span>2. {t("advisory.biological")}</span>
+                    </span>
+                    <ul className="space-y-1.5 text-[0.8125rem] text-ink pl-4 list-disc">
+                      {(selectedThreat.biological ?? ["Seed treatment with biocontrol agents", "Installation of pheromone / sticky traps"]).map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Chemical Formulations */}
+                  <div className="border border-line bg-paper p-4 space-y-2">
+                    <span className="text-caption text-alert font-semibold flex items-center gap-1.5">
+                      <FlaskConical className="size-4" />
+                      <span>3. {t("advisory.chemical")}</span>
+                    </span>
+                    <ul className="space-y-1.5 text-[0.8125rem] text-ink pl-4 list-disc">
+                      {(selectedThreat.chemical ?? ["Use registered formulation on expert advice", "Observe strict Pre-Harvest Intervals"]).map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: MICROSCOPIC MARKERS */}
+              {activeTab === "microscope" && (
+                <div className="space-y-4">
+                  <div className="border border-line bg-paper p-4">
+                    <h3 className="font-display font-semibold text-ink text-[1rem] flex items-center gap-2">
+                      <Microscope className="size-4 text-forest" />
+                      <span>Laboratory & Microscopy Diagnostic Markers</span>
+                    </h3>
+                    <p className="text-[0.8125rem] text-ink-2 mt-1">
+                      Cellular structures, sporulation characteristics, and diagnostic assays for lab validation.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {specimen.microscopeFeatures.map((feat, idx) => (
+                      <div key={idx} className="border border-line bg-paper p-3.5 space-y-1">
+                        <span className="text-caption text-forest font-mono">Marker #{idx + 1}</span>
+                        <p className="text-[0.8125rem] font-semibold text-ink">{feat}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="border border-line bg-surface p-12 text-center text-ink-2">

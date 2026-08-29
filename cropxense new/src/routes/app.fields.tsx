@@ -125,12 +125,9 @@ function FieldsPage() {
   );
 
   useEffect(() => {
-    const unsub = subscribe(() => {
+    return subscribe(() => {
       farmsQ.reload?.();
     });
-    return () => {
-      unsub();
-    };
   }, [farmsQ.reload]);
 
   const casesQ = useAsync(() => (open ? getAssessments({ farmId: open.id }) : Promise.resolve([])), [open?.id]);

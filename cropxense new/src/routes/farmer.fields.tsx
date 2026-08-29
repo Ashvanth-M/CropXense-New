@@ -26,6 +26,8 @@ import {
   Layers,
   Calendar,
   Compass,
+  Thermometer,
+  Droplets,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Card";
 import { StatusChip, type Status } from "@/components/ui/Status";
@@ -41,6 +43,8 @@ import {
   CROPS,
   DISTRICTS,
   STAGE_LABEL,
+  districtName,
+  cropName,
 } from "@/services";
 import type { Farm, CropStage } from "@/types";
 import { useT } from "@/i18n";
@@ -303,9 +307,8 @@ function FarmerFieldsPage() {
               className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-4 text-[0.875rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20] shadow-sm"
             >
               <Plus className="size-4" />
-              <span>Add New Field</span>
+              <span>+ {t("fields.addField")}</span>
             </button>
-
             <Link
               to="/farmer/scan"
               className="inline-flex min-h-[44px] items-center gap-2 border border-line bg-paper px-4 text-[0.875rem] font-semibold text-ink transition-colors hover:bg-surface-2"
