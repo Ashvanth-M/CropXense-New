@@ -280,7 +280,13 @@ export async function resetPassword(email: string): Promise<{ ok: boolean; error
 /* ----------------------------------------------------------------- helpers */
 
 function toSession(demo: DemoUser): SessionUser {
+  let id = "demo-user";
+  if (demo.role === "farmer") id = "demo-farmer-ramesh";
+  else if (demo.role === "officer") id = "demo-officer-priya";
+  else if (demo.role === "expert") id = "demo-expert-anjali";
+
   return {
+    id,
     email: demo.email,
     name: demo.name,
     role: demo.role,

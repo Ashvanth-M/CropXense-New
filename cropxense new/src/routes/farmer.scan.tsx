@@ -217,6 +217,7 @@ function FarmerScanPage() {
         cropStage: growthStage,
         notes: notes || undefined,
         diagnosis,
+        farmerId: user?.id,
       });
 
       setCaseResult(result);
