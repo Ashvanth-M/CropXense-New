@@ -127,16 +127,9 @@ function FieldsPage() {
   );
 
   useEffect(() => {
-<<<<<<< HEAD
-    const unsub = subscribe(() => {
+    return subscribe(() => {
       farmsQ.reload?.();
     });
-    return unsub;
-=======
-    return subscribe(() => {
-      farmsQ.reload();
-    });
->>>>>>> origin/anirudh
   }, [farmsQ.reload]);
 
   const casesQ = useAsync(() => (open ? getAssessments({ farmId: open.id }) : Promise.resolve([])), [open?.id]);

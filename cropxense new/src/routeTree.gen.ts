@@ -31,8 +31,10 @@ import { Route as AppSensorsRouteImport } from './routes/app.sensors'
 import { Route as AppTrapsRouteImport } from './routes/app.traps'
 import { Route as AppValidationRouteImport } from './routes/app.validation'
 import { Route as ExpertIndexRouteImport } from './routes/expert.index'
+import { Route as ExpertEpidemiologyRouteImport } from './routes/expert.epidemiology'
 import { Route as ExpertHistoryRouteImport } from './routes/expert.history'
 import { Route as ExpertKnowledgeRouteImport } from './routes/expert.knowledge'
+import { Route as ExpertLabRouteImport } from './routes/expert.lab'
 import { Route as FarmerIndexRouteImport } from './routes/farmer.index'
 import { Route as FarmerAdvisoriesRouteImport } from './routes/farmer.advisories'
 import { Route as FarmerAlertsRouteImport } from './routes/farmer.alerts'
@@ -153,6 +155,11 @@ const ExpertIndexRoute = ExpertIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ExpertRoute,
 } as any)
+const ExpertEpidemiologyRoute = ExpertEpidemiologyRouteImport.update({
+  id: '/epidemiology',
+  path: '/epidemiology',
+  getParentRoute: () => ExpertRoute,
+} as any)
 const ExpertHistoryRoute = ExpertHistoryRouteImport.update({
   id: '/history',
   path: '/history',
@@ -161,6 +168,11 @@ const ExpertHistoryRoute = ExpertHistoryRouteImport.update({
 const ExpertKnowledgeRoute = ExpertKnowledgeRouteImport.update({
   id: '/knowledge',
   path: '/knowledge',
+  getParentRoute: () => ExpertRoute,
+} as any)
+const ExpertLabRoute = ExpertLabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
   getParentRoute: () => ExpertRoute,
 } as any)
 const FarmerIndexRoute = FarmerIndexRouteImport.update({
@@ -238,8 +250,10 @@ export interface FileRoutesByFullPath {
   '/app/sensors': typeof AppSensorsRoute
   '/app/traps': typeof AppTrapsRoute
   '/app/validation': typeof AppValidationRoute
+  '/expert/epidemiology': typeof ExpertEpidemiologyRoute
   '/expert/history': typeof ExpertHistoryRoute
   '/expert/knowledge': typeof ExpertKnowledgeRoute
+  '/expert/lab': typeof ExpertLabRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
   '/farmer/crop-care': typeof FarmerCropCareRoute
@@ -270,8 +284,10 @@ export interface FileRoutesByTo {
   '/app/sensors': typeof AppSensorsRoute
   '/app/traps': typeof AppTrapsRoute
   '/app/validation': typeof AppValidationRoute
+  '/expert/epidemiology': typeof ExpertEpidemiologyRoute
   '/expert/history': typeof ExpertHistoryRoute
   '/expert/knowledge': typeof ExpertKnowledgeRoute
+  '/expert/lab': typeof ExpertLabRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
   '/farmer/crop-care': typeof FarmerCropCareRoute
@@ -307,8 +323,10 @@ export interface FileRoutesById {
   '/app/sensors': typeof AppSensorsRoute
   '/app/traps': typeof AppTrapsRoute
   '/app/validation': typeof AppValidationRoute
+  '/expert/epidemiology': typeof ExpertEpidemiologyRoute
   '/expert/history': typeof ExpertHistoryRoute
   '/expert/knowledge': typeof ExpertKnowledgeRoute
+  '/expert/lab': typeof ExpertLabRoute
   '/farmer/advisories': typeof FarmerAdvisoriesRoute
   '/farmer/alerts': typeof FarmerAlertsRoute
   '/farmer/crop-care': typeof FarmerCropCareRoute
@@ -345,8 +363,10 @@ export interface FileRouteTypes {
     | '/app/sensors'
     | '/app/traps'
     | '/app/validation'
+    | '/expert/epidemiology'
     | '/expert/history'
     | '/expert/knowledge'
+    | '/expert/lab'
     | '/farmer/advisories'
     | '/farmer/alerts'
     | '/farmer/crop-care'
@@ -377,8 +397,10 @@ export interface FileRouteTypes {
     | '/app/sensors'
     | '/app/traps'
     | '/app/validation'
+    | '/expert/epidemiology'
     | '/expert/history'
     | '/expert/knowledge'
+    | '/expert/lab'
     | '/farmer/advisories'
     | '/farmer/alerts'
     | '/farmer/crop-care'
@@ -413,8 +435,10 @@ export interface FileRouteTypes {
     | '/app/sensors'
     | '/app/traps'
     | '/app/validation'
+    | '/expert/epidemiology'
     | '/expert/history'
     | '/expert/knowledge'
+    | '/expert/lab'
     | '/farmer/advisories'
     | '/farmer/alerts'
     | '/farmer/crop-care'
@@ -597,6 +621,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ExpertIndexRouteImport
       parentRoute: typeof ExpertRoute
     }
+    '/expert/epidemiology': {
+      id: '/expert/epidemiology'
+      path: '/epidemiology'
+      fullPath: '/expert/epidemiology'
+      preLoaderRoute: typeof ExpertEpidemiologyRouteImport
+      parentRoute: typeof ExpertRoute
+    }
     '/expert/history': {
       id: '/expert/history'
       path: '/history'
@@ -609,6 +640,13 @@ declare module '@tanstack/react-router' {
       path: '/knowledge'
       fullPath: '/expert/knowledge'
       preLoaderRoute: typeof ExpertKnowledgeRouteImport
+      parentRoute: typeof ExpertRoute
+    }
+    '/expert/lab': {
+      id: '/expert/lab'
+      path: '/lab'
+      fullPath: '/expert/lab'
+      preLoaderRoute: typeof ExpertLabRouteImport
       parentRoute: typeof ExpertRoute
     }
     '/farmer/': {
@@ -747,14 +785,18 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface ExpertRouteChildren {
+  ExpertEpidemiologyRoute: typeof ExpertEpidemiologyRoute
   ExpertHistoryRoute: typeof ExpertHistoryRoute
   ExpertKnowledgeRoute: typeof ExpertKnowledgeRoute
+  ExpertLabRoute: typeof ExpertLabRoute
   ExpertIndexRoute: typeof ExpertIndexRoute
 }
 
 const ExpertRouteChildren: ExpertRouteChildren = {
+  ExpertEpidemiologyRoute: ExpertEpidemiologyRoute,
   ExpertHistoryRoute: ExpertHistoryRoute,
   ExpertKnowledgeRoute: ExpertKnowledgeRoute,
+  ExpertLabRoute: ExpertLabRoute,
   ExpertIndexRoute: ExpertIndexRoute,
 }
 

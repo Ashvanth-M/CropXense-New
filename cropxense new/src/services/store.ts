@@ -2,12 +2,8 @@ import type {
   Advisory,
   CropHealthAssessment,
   ExpertReview,
-  Farm,
-<<<<<<< HEAD
   FarmerFeedback,
   FarmerScan,
-=======
->>>>>>> origin/anirudh
   FieldVisit,
   FollowUp,
 } from "@/types";
@@ -27,12 +23,8 @@ export type Store = {
   advisories: Advisory[];
   visits: FieldVisit[];
   followUps: FollowUp[];
-<<<<<<< HEAD
   scans: FarmerScan[];
   feedbacks: FarmerFeedback[];
-=======
-  farms: Farm[];
->>>>>>> origin/anirudh
 };
 
 const STORAGE_KEY = "cropxense_store_v7";
@@ -275,7 +267,6 @@ function loadInitialStore(): Store {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-<<<<<<< HEAD
         if (parsed && Array.isArray(parsed.assessments) && Array.isArray(parsed.farms)) {
           // Verify that only the 10 RAMESH_FIELDS are tagged for demo-farmer-ramesh
           const rameshCount = parsed.farms.filter((f: Farm) => RAMESH_FIELD_IDS.has(f.id)).length;
@@ -285,13 +276,6 @@ function loadInitialStore(): Store {
           if (!Array.isArray(parsed.scans)) parsed.scans = [];
           if (!Array.isArray(parsed.feedbacks)) parsed.feedbacks = [];
           return parsed;
-=======
-        if (parsed && Array.isArray(parsed.assessments)) {
-          return {
-            ...parsed,
-            farms: Array.isArray(parsed.farms) ? parsed.farms : FARMS.map((f) => ({ ...f })),
-          };
->>>>>>> origin/anirudh
         }
       }
     } catch (e) {
@@ -308,12 +292,8 @@ function loadInitialStore(): Store {
     advisories: ADVISORIES.map((a) => ({ ...a })),
     visits: FIELD_VISITS.map((v) => ({ ...v })),
     followUps: FOLLOW_UPS.map((f) => ({ ...f })),
-<<<<<<< HEAD
     scans: [],
     feedbacks: [],
-=======
-    farms: FARMS.map((f) => ({ ...f })),
->>>>>>> origin/anirudh
   };
 }
 
@@ -363,12 +343,8 @@ export function resetStore() {
   store.advisories = ADVISORIES.map((a) => ({ ...a }));
   store.visits = FIELD_VISITS.map((v) => ({ ...v }));
   store.followUps = FOLLOW_UPS.map((f) => ({ ...f }));
-<<<<<<< HEAD
   store.scans = [];
   store.feedbacks = [];
-=======
-  store.farms = FARMS.map((f) => ({ ...f }));
->>>>>>> origin/anirudh
   emit();
 }
 
