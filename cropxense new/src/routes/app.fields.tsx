@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Input, Select } from "@/components/ui/Field";
@@ -26,6 +26,7 @@ import {
   getTraps,
   isoDay,
   latestWeather,
+  subscribe,
 } from "@/services";
 import type { Farm } from "@/types";
 
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/app/fields")({
       { title: "Fields — CropXense farm register" },
       {
         name: "description",
-        content: "Searchable register of monitored fields across Maharashtra with crop, stage, area and current health.",
+        content: "Searchable register of monitored fields across India with crop, stage, area and current health.",
       },
       { property: "og:title", content: "Fields — CropXense" },
       { property: "og:description", content: "Farm register with crop, stage, area, health and case history." },
@@ -124,6 +125,12 @@ function FieldsPage() {
       }),
     [districtId, cropId, health, query],
   );
+
+  useEffect(() => {
+    return subscribe(() => {
+      farmsQ.reload();
+    });
+  }, [farmsQ.reload]);
 
   const casesQ = useAsync(() => (open ? getAssessments({ farmId: open.id }) : Promise.resolve([])), [open?.id]);
   const sensorsQ = useAsync(() => getSensors(open?.districtId), [open?.districtId]);

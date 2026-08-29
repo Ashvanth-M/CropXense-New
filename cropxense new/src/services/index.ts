@@ -41,7 +41,7 @@ export const districtById = (id: string): District | undefined => DISTRICTS.find
 export const districtName = (id: string) => districtById(id)?.name ?? id;
 export const cropById = (id: string): Crop | undefined => CROPS.find((c) => c.id === id);
 export const cropName = (id: string) => cropById(id)?.name ?? id;
-export const farmById = (id: string): Farm | undefined => FARMS.find((f) => f.id === id);
+export const farmById = (id: string): Farm | undefined => store.farms.find((f) => f.id === id);
 export const threatName = (id: string) =>
   DISEASES.find((d) => d.id === id)?.name ?? PESTS.find((p) => p.id === id)?.name ?? id;
 
@@ -71,7 +71,7 @@ export interface FarmFilters {
 
 export function getFarms(filters: FarmFilters = {}): Promise<Farm[]> {
   const q = filters.query?.trim().toLowerCase();
-  const rows = FARMS.filter(
+  const rows = store.farms.filter(
     (f) =>
       (!filters.districtId || f.districtId === filters.districtId) &&
       (!filters.cropId || f.cropId === filters.cropId) &&
@@ -82,11 +82,22 @@ export function getFarms(filters: FarmFilters = {}): Promise<Farm[]> {
         f.ownerName.toLowerCase().includes(q) ||
         f.id.toLowerCase().includes(q)),
   );
-  return delay(rows);
+  return delay(rows.map((f) => ({ ...f })));
 }
 
 export function getFarm(id: string): Promise<Farm | undefined> {
   return delay(farmById(id));
+}
+
+export async function addFarm(input: Omit<Farm, "id">): Promise<Farm> {
+  const newId = `F-${String(store.farms.length + 101).padStart(3, "0")}`;
+  const newFarm: Farm = {
+    ...input,
+    id: newId,
+  };
+  store.farms = [newFarm, ...store.farms];
+  emit();
+  return delay(newFarm, 200, 400);
 }
 
 export interface AssessmentFilters {
@@ -190,9 +201,9 @@ export interface OverviewMetrics {
 
 export function getOverviewMetrics(): Promise<OverviewMetrics> {
   return delay({
-    fieldsMonitored: FARMS.length,
-    healthy: FARMS.filter((f) => f.health === "healthy").length,
-    atRisk: FARMS.filter((f) => f.health === "at_risk").length,
+    fieldsMonitored: store.farms.length,
+    healthy: store.farms.filter((f) => f.health === "healthy").length,
+    atRisk: store.farms.filter((f) => f.health === "at_risk").length,
     activeOutbreaks: OUTBREAKS.filter((o) => o.risk === "high").length,
     pendingReview: store.assessments.filter((a) => a.status === "awaiting_validation").length,
     openFieldCases: store.visits.filter((v) => v.status === "scheduled").length,

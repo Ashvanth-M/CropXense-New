@@ -2,12 +2,14 @@ import type {
   Advisory,
   CropHealthAssessment,
   ExpertReview,
+  Farm,
   FieldVisit,
   FollowUp,
 } from "@/types";
 import {
   ADVISORIES,
   ASSESSMENTS,
+  FARMS,
   FIELD_VISITS,
   FOLLOW_UPS,
   REVIEWS,
@@ -19,6 +21,7 @@ type Store = {
   advisories: Advisory[];
   visits: FieldVisit[];
   followUps: FollowUp[];
+  farms: Farm[];
 };
 
 const STORAGE_KEY = "cropxense_store_v2";
@@ -30,7 +33,10 @@ function loadInitialStore(): Store {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && Array.isArray(parsed.assessments)) {
-          return parsed;
+          return {
+            ...parsed,
+            farms: Array.isArray(parsed.farms) ? parsed.farms : FARMS.map((f) => ({ ...f })),
+          };
         }
       }
     } catch (e) {
@@ -43,6 +49,7 @@ function loadInitialStore(): Store {
     advisories: ADVISORIES.map((a) => ({ ...a })),
     visits: FIELD_VISITS.map((v) => ({ ...v })),
     followUps: FOLLOW_UPS.map((f) => ({ ...f })),
+    farms: FARMS.map((f) => ({ ...f })),
   };
 }
 
@@ -86,6 +93,7 @@ export function resetStore() {
   store.advisories = ADVISORIES.map((a) => ({ ...a }));
   store.visits = FIELD_VISITS.map((v) => ({ ...v }));
   store.followUps = FOLLOW_UPS.map((f) => ({ ...f }));
+  store.farms = FARMS.map((f) => ({ ...f }));
   emit();
 }
 

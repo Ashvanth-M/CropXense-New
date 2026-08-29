@@ -63,7 +63,13 @@ const pick = <T,>(arr: T[], r: number) => arr[Math.floor(r * arr.length) % arr.l
  * Districts under an active monsoon spell carry the humidity and leaf wetness
  * that justify a "high" risk anywhere downstream. Dry districts cannot.
  */
-const WET_DISTRICTS = new Set(["amravati", "yavatmal", "akola", "wardha", "nagpur"]);
+const WET_DISTRICTS = new Set([
+  "amravati", "akola", "nagpur",
+  "lucknow", "varanasi", "patna",
+  "bardhaman", "murshidabad", "cuttack",
+  "jorhat", "thanjavur", "palakkad",
+  "guntur", "warangal",
+]);
 
 export const WEATHER: WeatherObservation[] = DISTRICTS.flatMap((d, di) => {
   const r = rng(101 + di * 17);
@@ -96,23 +102,40 @@ const STAGE_BY_CROP: Record<string, CropStage> = Object.fromEntries(
   CROPS.map((c) => [c.id, c.currentStage]),
 );
 
-/** 118 monitored fields: 74 healthy, 31 at risk, 13 affected. */
+/** ~200 monitored fields across India: 120 healthy, 55 at risk, 25 affected. */
 const HEALTH_PLAN: Farm["health"][] = [
-  ...Array<Farm["health"]>(74).fill("healthy"),
-  ...Array<Farm["health"]>(31).fill("at_risk"),
-  ...Array<Farm["health"]>(13).fill("affected"),
+  ...Array<Farm["health"]>(120).fill("healthy"),
+  ...Array<Farm["health"]>(55).fill("at_risk"),
+  ...Array<Farm["health"]>(25).fill("affected"),
 ];
 
+/** Crop mix by district — realistic for each region. */
 const CROP_MIX: Record<string, string[]> = {
   akola: ["cotton", "soybean", "cotton", "tomato"],
   amravati: ["cotton", "cotton", "soybean", "onion"],
-  yavatmal: ["cotton", "soybean", "cotton", "rice"],
   nagpur: ["soybean", "rice", "cotton", "banana"],
-  wardha: ["cotton", "soybean", "tomato", "cotton"],
-  jalgaon: ["banana", "cotton", "onion", "banana"],
-  nashik: ["onion", "tomato", "onion", "banana"],
-  pune: ["sugarcane", "onion", "tomato", "sugarcane"],
-  solapur: ["sugarcane", "onion", "sugarcane", "tomato"],
+  ludhiana: ["wheat", "rice", "cotton", "wheat"],
+  amritsar: ["wheat", "rice", "wheat", "rice"],
+  lucknow: ["wheat", "rice", "sugarcane", "tomato"],
+  varanasi: ["rice", "wheat", "sugarcane", "onion"],
+  indore: ["soybean", "cotton", "wheat", "onion"],
+  bhopal: ["soybean", "wheat", "cotton", "tomato"],
+  jaipur: ["wheat", "onion", "tomato", "wheat"],
+  jodhpur: ["wheat", "onion", "cotton", "tomato"],
+  belgaum: ["sugarcane", "cotton", "soybean", "onion"],
+  mysore: ["rice", "sugarcane", "banana", "tomato"],
+  thanjavur: ["rice", "rice", "banana", "sugarcane"],
+  coimbatore: ["cotton", "banana", "tomato", "onion"],
+  guntur: ["cotton", "rice", "onion", "tomato"],
+  warangal: ["rice", "cotton", "soybean", "tomato"],
+  bardhaman: ["rice", "rice", "wheat", "tomato"],
+  murshidabad: ["rice", "wheat", "onion", "banana"],
+  rajkot: ["cotton", "onion", "wheat", "cotton"],
+  ahmedabad: ["cotton", "wheat", "onion", "tomato"],
+  patna: ["rice", "wheat", "sugarcane", "banana"],
+  cuttack: ["rice", "rice", "sugarcane", "tomato"],
+  jorhat: ["rice", "rice", "banana", "tomato"],
+  palakkad: ["rice", "banana", "rice", "sugarcane"],
 };
 
 function parcelFor(lat: number, lon: number, areaHa: number, r: () => number): [number, number][] {
@@ -128,11 +151,6 @@ function parcelFor(lat: number, lon: number, areaHa: number, r: () => number): [
 export const FARMS: Farm[] = (() => {
   const out: Farm[] = [];
   const r = rng(7717);
-  // more fields in the cotton belt, fewer in the west
-  const weights: Record<string, number> = {
-    amravati: 20, yavatmal: 19, akola: 16, wardha: 12, nagpur: 12,
-    jalgaon: 13, nashik: 10, pune: 8, solapur: 8,
-  };
   const shuffledHealth = [...HEALTH_PLAN];
   // deterministic shuffle so unhealthy fields are spread across districts
   for (let i = shuffledHealth.length - 1; i > 0; i--) {
@@ -141,18 +159,19 @@ export const FARMS: Farm[] = (() => {
   }
   let n = 0;
   DISTRICTS.forEach((d) => {
-    const count = weights[d.id] ?? 10;
+    const count = 8; // 8 farms per district → ~200 total
     for (let i = 0; i < count; i++) {
-      const mix = CROP_MIX[d.id]!;
+      const mix = CROP_MIX[d.id] ?? ["rice", "wheat", "cotton", "soybean"];
       const cropId = mix[i % mix.length]!;
       const areaHa = Math.round((0.4 + r() * 11.6) * 10) / 10;
       const lat = d.lat + (r() - 0.5) * 0.5;
       const lon = d.lon + (r() - 0.5) * 0.6;
+      const vils = VILLAGES[d.id] ?? ["Village A", "Village B", "Village C"];
       out.push({
         id: `F-${d.id.slice(0, 3).toUpperCase()}-${String(i + 1).padStart(3, "0")}`,
         name: `${pick(FARM_PREFIX, r())} ${pick(FARM_SUFFIX, r())}`,
         ownerName: `${pick(OWNER_FIRST, r())} ${pick(OWNER_LAST, r())}`,
-        village: pick(VILLAGES[d.id]!, r()),
+        village: pick(vils, r()),
         districtId: d.id,
         areaHa,
         cropId,
@@ -285,12 +304,12 @@ function evidenceFor(
 }
 
 const STATUS_PLAN: CropHealthAssessment["status"][] = [
-  ...Array<CropHealthAssessment["status"]>(9).fill("awaiting_validation"),
-  ...Array<CropHealthAssessment["status"]>(8).fill("expert_confirmed"),
-  ...Array<CropHealthAssessment["status"]>(5).fill("field_confirmed"),
-  ...Array<CropHealthAssessment["status"]>(6).fill("detected"),
-  ...Array<CropHealthAssessment["status"]>(4).fill("resolved"),
-  ...Array<CropHealthAssessment["status"]>(2).fill("rejected"),
+  ...Array<CropHealthAssessment["status"]>(12).fill("awaiting_validation"),
+  ...Array<CropHealthAssessment["status"]>(10).fill("expert_confirmed"),
+  ...Array<CropHealthAssessment["status"]>(7).fill("field_confirmed"),
+  ...Array<CropHealthAssessment["status"]>(8).fill("detected"),
+  ...Array<CropHealthAssessment["status"]>(5).fill("resolved"),
+  ...Array<CropHealthAssessment["status"]>(3).fill("rejected"),
 ];
 
 const CHANNEL_SETS: SignalChannel[][] = [
@@ -312,8 +331,9 @@ export const ASSESSMENTS: CropHealthAssessment[] = (() => {
     const wet = WET_DISTRICTS.has(farm.districtId);
     const confidence = Math.round((wet ? 68 : 52) + r() * 28);
     const severity = (Math.min(5, Math.max(1, Math.round(confidence / 22))) as Severity);
+    const dName = DISTRICTS.find((x) => x.id === farm.districtId)?.name ?? farm.districtId;
     return {
-      id: `MH-${farm.districtId.slice(0, 3).toUpperCase()}-${24100 + i}`,
+      id: `IN-${farm.districtId.slice(0, 3).toUpperCase()}-${24100 + i}`,
       farmId: farm.id,
       districtId: farm.districtId,
       cropId: farm.cropId,
@@ -368,7 +388,7 @@ export const ADVISORIES: Advisory[] = ASSESSMENTS.filter((a) =>
 export const FIELD_VISITS: FieldVisit[] = ASSESSMENTS.filter((a) =>
   ["expert_confirmed", "field_confirmed", "awaiting_validation"].includes(a.status),
 )
-  .slice(0, 13)
+  .slice(0, 16)
   .map((a, i) => ({
     id: `FV-${String(i + 1).padStart(3, "0")}`,
     assessmentId: a.id,
@@ -382,7 +402,7 @@ export const FIELD_VISITS: FieldVisit[] = ASSESSMENTS.filter((a) =>
       : {}),
   }));
 
-export const FOLLOW_UPS: FollowUp[] = ASSESSMENTS.slice(0, 10).map((a, i) => ({
+export const FOLLOW_UPS: FollowUp[] = ASSESSMENTS.slice(0, 12).map((a, i) => ({
   id: `FU-${String(i + 1).padStart(3, "0")}`,
   assessmentId: a.id,
   dueOn: isoDay(i % 6),
@@ -393,14 +413,34 @@ export const FOLLOW_UPS: FollowUp[] = ASSESSMENTS.slice(0, 10).map((a, i) => ({
 /* ---------------------------------------------------------------- outbreaks */
 
 const OUTBREAK_SPEC: { districtId: string; cropId: string; threatId: string; risk: RiskLevel; fields: number; newest?: boolean }[] = [
+  // High risk
   { districtId: "amravati", cropId: "cotton", threatId: "american_bollworm", risk: "high", fields: 27, newest: true },
-  { districtId: "yavatmal", cropId: "cotton", threatId: "pink_bollworm", risk: "high", fields: 21, newest: true },
+  { districtId: "ludhiana", cropId: "wheat", threatId: "yellow_rust", risk: "high", fields: 22, newest: true },
   { districtId: "akola", cropId: "soybean", threatId: "yellow_mosaic", risk: "high", fields: 16 },
-  { districtId: "wardha", cropId: "cotton", threatId: "bacterial_blight", risk: "high", fields: 12 },
+  { districtId: "thanjavur", cropId: "rice", threatId: "rice_blast", risk: "high", fields: 19, newest: true },
+  { districtId: "bardhaman", cropId: "rice", threatId: "sheath_blight", risk: "high", fields: 14 },
+  { districtId: "guntur", cropId: "cotton", threatId: "pink_bollworm", risk: "high", fields: 18 },
+  // Moderate risk
   { districtId: "nagpur", cropId: "rice", threatId: "rice_blast", risk: "moderate", fields: 9 },
-  { districtId: "jalgaon", cropId: "banana", threatId: "sigatoka", risk: "moderate", fields: 8 },
-  { districtId: "nashik", cropId: "onion", threatId: "thrips", risk: "moderate", fields: 6 },
-  { districtId: "pune", cropId: "sugarcane", threatId: "shoot_borer", risk: "low", fields: 3 },
+  { districtId: "rajkot", cropId: "cotton", threatId: "bacterial_blight", risk: "moderate", fields: 11 },
+  { districtId: "indore", cropId: "soybean", threatId: "soy_rust", risk: "moderate", fields: 8 },
+  { districtId: "varanasi", cropId: "rice", threatId: "bph", risk: "moderate", fields: 7 },
+  { districtId: "coimbatore", cropId: "banana", threatId: "sigatoka", risk: "moderate", fields: 6 },
+  { districtId: "mysore", cropId: "sugarcane", threatId: "red_rot", risk: "moderate", fields: 5 },
+  { districtId: "cuttack", cropId: "rice", threatId: "rice_blast", risk: "moderate", fields: 8 },
+  { districtId: "warangal", cropId: "cotton", threatId: "whitefly", risk: "moderate", fields: 10 },
+  // Low risk
+  { districtId: "belgaum", cropId: "sugarcane", threatId: "shoot_borer", risk: "low", fields: 3 },
+  { districtId: "jaipur", cropId: "wheat", threatId: "aphids", risk: "low", fields: 4 },
+  { districtId: "patna", cropId: "rice", threatId: "bph", risk: "low", fields: 3 },
+  { districtId: "bhopal", cropId: "soybean", threatId: "girdle_beetle", risk: "low", fields: 2 },
+  { districtId: "jorhat", cropId: "rice", threatId: "rice_blast", risk: "low", fields: 3 },
+  { districtId: "palakkad", cropId: "rice", threatId: "sheath_blight", risk: "low", fields: 2 },
+  { districtId: "ahmedabad", cropId: "cotton", threatId: "whitefly", risk: "low", fields: 4 },
+  { districtId: "amritsar", cropId: "wheat", threatId: "yellow_rust", risk: "low", fields: 3 },
+  { districtId: "lucknow", cropId: "sugarcane", threatId: "shoot_borer", risk: "low", fields: 2 },
+  { districtId: "jodhpur", cropId: "onion", threatId: "thrips", risk: "low", fields: 2 },
+  { districtId: "murshidabad", cropId: "rice", threatId: "bph", risk: "low", fields: 3 },
 ];
 
 export const OUTBREAKS: Outbreak[] = OUTBREAK_SPEC.map((o, i) => {
@@ -465,4 +505,3 @@ export const FORECASTS: RiskForecast[] = DISTRICTS.map((d, di) => {
     }),
   };
 });
-

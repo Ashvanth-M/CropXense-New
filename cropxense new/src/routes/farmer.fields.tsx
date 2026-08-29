@@ -1,13 +1,5 @@
-/**
- * /farmer/fields — Registered Fields Management & Health Records.
- *
- * Professional desktop-first data table and field inspection console.
- * Filter by crop, health status, and growth stage. Allows viewing parcel details
- * and initiating instant leaf scans for specific plots.
- */
-
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Sprout,
   ScanLine,
@@ -22,13 +14,13 @@ import {
   FileText,
   Thermometer,
   Droplets,
+  Plus,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Card";
 import { StatusChip, StatusShape, type Status } from "@/components/ui/Status";
 import { useAsync } from "@/hooks/useAsync";
-import { getDemoFarms } from "@/data/farmerDemo";
-import { cropName, STAGE_LABEL } from "@/services";
-import type { Farm } from "@/types";
+import { addFarm, CROPS, DISTRICTS, getFarms, subscribe, cropName, districtName, STAGE_LABEL } from "@/services";
+import type { Farm, CropStage } from "@/types";
 import { cx } from "@/lib/cx";
 
 export const Route = createFileRoute("/farmer/fields")({
@@ -56,10 +48,59 @@ const HEALTH_TO_STATUS: Record<string, Status> = {
 };
 
 function FarmerFieldsPage() {
-  const { data: farms, loading } = useAsync(() => getDemoFarms(), []);
+  const { data: farms, loading, reload } = useAsync(() => getFarms(), []);
   const [filterHealth, setFilterHealth] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedField, setSelectedField] = useState<Farm | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // New Farm form state
+  const [farmName, setFarmName] = useState("");
+  const [ownerName, setOwnerName] = useState("Ramesh Pawar");
+  const [village, setVillage] = useState("Wadgaon");
+  const [districtId, setDistrictId] = useState("amravati");
+  const [cropId, setCropId] = useState("cotton");
+  const [areaHa, setAreaHa] = useState("2.5");
+  const [sowingDate, setSowingDate] = useState("2026-06-15");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    return subscribe(() => {
+      reload();
+    });
+  }, [reload]);
+
+  async function handleRegisterFarm(e: React.FormEvent) {
+    e.preventDefault();
+    if (!farmName.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const dist = DISTRICTS.find((d) => d.id === districtId) ?? DISTRICTS[0]!;
+      await addFarm({
+        name: farmName.trim(),
+        ownerName: ownerName.trim(),
+        village: village.trim(),
+        districtId,
+        areaHa: parseFloat(areaHa) || 1.5,
+        cropId,
+        stage: "vegetative" as CropStage,
+        lat: dist.lat + (Math.random() - 0.5) * 0.05,
+        lon: dist.lon + (Math.random() - 0.5) * 0.05,
+        parcel: [
+          [dist.lat, dist.lon],
+          [dist.lat + 0.002, dist.lon + 0.002],
+          [dist.lat + 0.002, dist.lon],
+        ],
+        health: "healthy",
+        sowingDate: sowingDate || "2026-06-15",
+      });
+      setFarmName("");
+      setIsRegistering(false);
+      reload();
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   const filteredFarms = useMemo(() => {
     return (farms ?? []).filter((f) => {
@@ -88,7 +129,15 @@ function FarmerFieldsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsRegistering(true)}
+              className="inline-flex min-h-[44px] items-center gap-2 border border-line bg-paper px-4 text-[0.875rem] font-semibold text-ink transition-colors hover:bg-surface-2"
+            >
+              <Plus className="size-4 text-forest" />
+              <span>Register New Field</span>
+            </button>
             <Link
               to="/farmer/scan"
               className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-4 text-[0.875rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20]"
@@ -251,7 +300,7 @@ function FarmerFieldsPage() {
                   {selectedField.name}
                 </h2>
                 <p className="text-[0.8125rem] text-ink-2">
-                  {selectedField.village}, Maharashtra · <span className="num font-semibold">{selectedField.areaHa} ha</span>
+                  {selectedField.village}, {districtName(selectedField.districtId)} · <span className="num font-semibold">{selectedField.areaHa} ha</span>
                 </p>
               </div>
               <button
@@ -330,6 +379,134 @@ function FarmerFieldsPage() {
                 </Link>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Register New Field Modal */}
+      {isRegistering && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog">
+          <div className="fixed inset-0 bg-ink/50 backdrop-blur-xs" onClick={() => setIsRegistering(false)} />
+          <div className="relative w-full max-w-lg border border-line bg-surface p-6 shadow-overlay">
+            <div className="flex items-start justify-between border-b border-line pb-4">
+              <div>
+                <span className="text-caption text-forest">Parcel Registration</span>
+                <h2 className="font-display text-[1.25rem] font-semibold text-ink">Register New Farm</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsRegistering(false)}
+                className="size-8 inline-flex items-center justify-center rounded border border-line text-ink-2 hover:text-ink"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleRegisterFarm} className="mt-4 space-y-4 text-[0.875rem]">
+              <div>
+                <label className="block text-caption mb-1">Farm / Plot Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Krushi Vikas Sheti"
+                  value={farmName}
+                  onChange={(e) => setFarmName(e.target.value)}
+                  className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-caption mb-1">Cultivator Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={ownerName}
+                    onChange={(e) => setOwnerName(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  />
+                </div>
+                <div>
+                  <label className="block text-caption mb-1">Village</label>
+                  <input
+                    type="text"
+                    required
+                    value={village}
+                    onChange={(e) => setVillage(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-caption mb-1">District</label>
+                  <select
+                    value={districtId}
+                    onChange={(e) => setDistrictId(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  >
+                    {DISTRICTS.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-caption mb-1">Crop</label>
+                  <select
+                    value={cropId}
+                    onChange={(e) => setCropId(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  >
+                    {CROPS.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-caption mb-1">Area (Hectares)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                    required
+                    value={areaHa}
+                    onChange={(e) => setAreaHa(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  />
+                </div>
+                <div>
+                  <label className="block text-caption mb-1">Sowing Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={sowingDate}
+                    onChange={(e) => setSowingDate(e.target.value)}
+                    className="w-full border border-line bg-paper p-2.5 outline-none focus:border-forest"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-line">
+                <button
+                  type="button"
+                  onClick={() => setIsRegistering(false)}
+                  className="px-4 py-2 border border-line bg-paper font-semibold hover:bg-surface-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-5 py-2 border border-forest bg-forest font-semibold text-surface hover:bg-[#0e2b20]"
+                >
+                  {submitting ? "Registering…" : "Register Field"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

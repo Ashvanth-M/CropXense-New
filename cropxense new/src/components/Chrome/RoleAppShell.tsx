@@ -94,7 +94,7 @@ export function RoleAppShell({
   const pageTitle = currentNav?.label || "Overview";
 
   const userInitial = (user?.name || "U")[0]?.toUpperCase();
-  const userDistrict = user?.district || "Maharashtra";
+  const userDistrict = user?.district || "India";
 
   return (
     <div className="flex min-h-screen bg-paper text-ink">

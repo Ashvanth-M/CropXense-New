@@ -42,7 +42,7 @@ export const Route = createFileRoute("/app/")({
       {
         name: "description",
         content:
-          "Today's priority crop disease cases, emerging hotspots and district risk ranking for the Maharashtra surveillance network.",
+          "Today's priority crop disease cases, emerging hotspots and district risk ranking for the India surveillance network.",
       },
       { property: "og:title", content: "Officer overview — CropXense" },
       {

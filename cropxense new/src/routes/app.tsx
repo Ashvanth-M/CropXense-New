@@ -54,16 +54,14 @@ const OFFICER_SHELL_CONFIG: RoleShellConfig = {
     { to: "/app/forecast", label: "Forecast & Risk", icon: CloudSun },
     { to: "/app/traps", label: "Pest Traps", icon: Bug },
     { to: "/app/sensors", label: "Canopy Sensors", icon: Activity },
-    { to: "/app/advisories", label: "Advisories", icon: AlertCircle },
-    { to: "/app/reports", label: "Reports", icon: FileBarChart },
-    { to: "/app/validation", label: "Validation Status", icon: CheckCircle2 },
+    { to: "/app/reports", label: "Reports & Validations", icon: FileBarChart },
   ],
   mobileTabs: [
     { to: "/app", label: "Cases", icon: LayoutDashboard, exact: true },
     { to: "/app/fields", label: "Fields", icon: Sprout },
     { to: "/app/map", label: "Map", icon: Map },
     { to: "/app/crop-health", label: "Health", icon: ScanLine },
-    { to: "/app/advisories", label: "Advisories", icon: AlertCircle },
+    { to: "/app/reports", label: "Reports", icon: FileBarChart },
   ],
 };
 
