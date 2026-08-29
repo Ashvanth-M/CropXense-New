@@ -45,6 +45,7 @@ import { cx } from "@/lib/cx";
 import { validateImage, identifyCropFromImage, buildFullDiagnosis } from "@/services/imageAnalysis";
 import type { FullDiagnosis } from "@/services/imageAnalysis";
 import type { ImageValidation, CropStage, Farm } from "@/types";
+import { CVDiagnosticCanvas } from "@/components/farmer/CVDiagnosticCanvas";
 import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/farmer/scan")({
@@ -633,20 +634,24 @@ function FarmerScanPage() {
       {/* ── RESULT ── */}
       {step === "result" && diagnosis && (
         <div className="grid gap-5 lg:grid-cols-12">
-          {/* Left: Image + Evidence */}
-          <div className="space-y-4 lg:col-span-6">
-            {/* Image Assessment */}
+          {/* Left: Image + Evidence + CV Canvas */}
+          <div className="space-y-4 lg:col-span-7">
+            {/* Interactive CV Diagnostic Canvas */}
+            <CVDiagnosticCanvas
+              imageUrl={uploadedImage || `/crops/${diagnosis.threatId}.jpg`}
+              cropName={tCrop(diagnosis.cropId)}
+              threatName={diagnosis.threatName}
+              confidence={diagnosis.confidence}
+              severity={diagnosis.severity}
+              symptoms={selectedSymptoms}
+              className="mb-4 shadow-sm"
+            />
+
+            {/* Image Assessment & Details */}
             <div className="border border-line bg-surface p-5">
               <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
                 {t("page.overview.title")}
               </h2>
-
-              {/* Uploaded image */}
-              {uploadedImage && (
-                <div className="overflow-hidden border border-line bg-paper mb-4">
-                  <img src={uploadedImage} alt="Uploaded crop" className="max-h-[280px] w-full object-contain" />
-                </div>
-              )}
 
               {/* Image validation summary */}
               <div className="grid grid-cols-2 gap-2 text-[0.8125rem] mb-4">
@@ -714,7 +719,7 @@ function FarmerScanPage() {
           </div>
 
           {/* Right: Diagnosis + Risk + IPM */}
-          <div className="space-y-4 lg:col-span-6">
+          <div className="space-y-4 lg:col-span-5">
             {/* Primary finding */}
             <div className="border border-forest bg-surface p-5">
               <div className="flex items-start justify-between">
