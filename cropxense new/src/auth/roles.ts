@@ -71,7 +71,7 @@ export const DEMO_USERS: DemoUser[] = [
     password: DEMO_PASSWORD,
     name: "Dr. Anjali Patil",
     role: "expert",
-    district: "Maharashtra",
+    district: "India",
     designation: "Senior Plant Pathologist",
   },
 ];

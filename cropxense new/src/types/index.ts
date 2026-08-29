@@ -21,7 +21,7 @@ export interface District {
   id: string;
   name: string;
   nameMr: string;
-  region: "Vidarbha" | "Khandesh" | "Marathwada" | "Western Maharashtra";
+  region: string;
   lat: number;
   lon: number;
   /** rough polygon (lat,lon pairs) used by the surveillance map */

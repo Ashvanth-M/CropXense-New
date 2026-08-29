@@ -4,13 +4,14 @@ import {
   MapContainer,
   Marker,
   Polygon,
+  Popup,
   TileLayer,
   useMapEvents,
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Farm, Outbreak, PestTrap, Sensor } from "@/types";
-import { DISTRICTS } from "@/services";
+import { DISTRICTS, cropName, STAGE_LABEL } from "@/services";
 
 export type LayerKey =
   | "boundaries"
@@ -77,8 +78,8 @@ export default function SurveillanceMap({
   layers: Record<LayerKey, boolean>;
   onSelectOutbreak: (o: Outbreak) => void;
 }) {
-  const [zoom, setZoom] = useState(7);
-  const [cursor, setCursor] = useState({ lat: 19.9, lon: 76.8, zoom: 7 });
+  const [zoom, setZoom] = useState(5);
+  const [cursor, setCursor] = useState({ lat: 22.5, lon: 80.0, zoom: 5 });
   const clustered = zoom < 9;
 
   const clusters = useMemo(() => {
@@ -93,17 +94,17 @@ export default function SurveillanceMap({
   return (
     <div className="relative h-full w-full">
       <MapContainer
-        center={[19.9, 76.8]}
-        zoom={7}
-        minZoom={6}
+        center={[22.5, 80.0]}
+        zoom={5}
+        minZoom={4}
         maxZoom={13}
         scrollWheelZoom
         className="h-full w-full bg-paper"
         attributionControl={false}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-          className="cx-tiles"
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          className="cx-tiles opacity-85"
         />
         <ZoomWatcher onZoom={setZoom} />
         <ZoomReadout onChange={setCursor} />
@@ -122,18 +123,30 @@ export default function SurveillanceMap({
           })}
 
         {layers.boundaries &&
-          !clustered &&
           farms.map((f) => (
             <Polygon
               key={f.id}
               positions={f.parcel}
               pathOptions={{
                 color: HEALTH_FILL[f.health],
-                weight: 1,
+                weight: 1.5,
                 fillColor: HEALTH_FILL[f.health],
-                fillOpacity: 0.2,
+                fillOpacity: 0.25,
               }}
-            />
+            >
+              <Popup>
+                <div className="p-1 text-xs">
+                  <span className="font-bold text-forest block text-[0.875rem]">{f.name}</span>
+                  <span className="block text-ink font-semibold">Farmer: {f.ownerName}</span>
+                  <span className="block text-ink-2">Location: {f.village}, {f.districtId}</span>
+                  <span className="block text-ink-2">Crop: {cropName(f.cropId)} ({STAGE_LABEL[f.stage] || f.stage})</span>
+                  <span className="block text-ink-2">Area: {f.areaHa} ha</span>
+                  <span className="mt-1 inline-block uppercase font-bold text-caption px-1.5 py-0.5 border border-line bg-surface">
+                    Status: {f.health}
+                  </span>
+                </div>
+              </Popup>
+            </Polygon>
           ))}
 
         {clustered &&
@@ -144,7 +157,13 @@ export default function SurveillanceMap({
               center={[c.district.lat, c.district.lon]}
               radius={9 + Math.sqrt(c.count) * 1.6}
               pathOptions={{ color: "var(--forest)", weight: 1, fillColor: "var(--surface)", fillOpacity: 0.9 }}
-            />
+            >
+              <Popup>
+                <div className="p-1 text-xs font-semibold">
+                  {c.district.name} District: {c.count} registered farms
+                </div>
+              </Popup>
+            </CircleMarker>
           ))}
 
         {outbreaks
@@ -162,7 +181,15 @@ export default function SurveillanceMap({
                 fillOpacity: 0.22,
               }}
               eventHandlers={{ click: () => onSelectOutbreak(o) }}
-            />
+            >
+              <Popup>
+                <div className="p-1 text-xs">
+                  <span className="font-bold text-alert block text-[0.875rem]">{o.threatName}</span>
+                  <span className="block text-ink font-semibold">Risk: {o.risk.toUpperCase()}</span>
+                  <span className="block text-ink-2">Affected fields: {o.affectedFields}</span>
+                </div>
+              </Popup>
+            </CircleMarker>
           ))}
 
         {layers.sensors &&
@@ -172,7 +199,14 @@ export default function SurveillanceMap({
               key={s.id}
               position={[s.lat, s.lon]}
               icon={shapeIcon("square", s.status === "online" ? "#1d5b78" : "#5a6155", s.status === "online")}
-            />
+            >
+              <Popup>
+                <div className="p-1 text-xs">
+                  <span className="font-bold block">Canopy Sensor: {s.id}</span>
+                  <span>Type: {s.type} · Status: {s.status}</span>
+                </div>
+              </Popup>
+            </Marker>
           ))}
 
         {layers.traps &&
@@ -182,7 +216,14 @@ export default function SurveillanceMap({
               key={t.id}
               position={[t.lat, t.lon]}
               icon={shapeIcon("triangle", t.status === "active" ? "#6b4a2f" : "#5a6155", t.status === "active")}
-            />
+            >
+              <Popup>
+                <div className="p-1 text-xs">
+                  <span className="font-bold block">Pest Trap: {t.id}</span>
+                  <span>Type: {t.type} · Status: {t.status}</span>
+                </div>
+              </Popup>
+            </Marker>
           ))}
 
         {layers.weather &&

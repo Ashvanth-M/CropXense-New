@@ -36,7 +36,7 @@ export const Route = createFileRoute("/app/fields")({
       { title: "Fields — CropXense farm register" },
       {
         name: "description",
-        content: "Searchable register of monitored fields across Maharashtra with crop, stage, area and current health.",
+        content: "Searchable register of monitored fields across India with crop, stage, area and current health.",
       },
       { property: "og:title", content: "Fields — CropXense" },
       { property: "og:description", content: "Farm register with crop, stage, area, health and case history." },
@@ -127,10 +127,16 @@ function FieldsPage() {
   );
 
   useEffect(() => {
+<<<<<<< HEAD
     const unsub = subscribe(() => {
       farmsQ.reload?.();
     });
     return unsub;
+=======
+    return subscribe(() => {
+      farmsQ.reload();
+    });
+>>>>>>> origin/anirudh
   }, [farmsQ.reload]);
 
   const casesQ = useAsync(() => (open ? getAssessments({ farmId: open.id }) : Promise.resolve([])), [open?.id]);

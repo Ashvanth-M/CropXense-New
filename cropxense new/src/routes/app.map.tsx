@@ -38,12 +38,12 @@ export const Route = createFileRoute("/app/map")({
       {
         name: "description",
         content:
-          "Field boundaries, disease and pest hotspots, sensors, pest traps and risk zones on one Maharashtra survey sheet.",
+          "Field boundaries, disease and pest hotspots, sensors, pest traps and risk zones across India.",
       },
       { property: "og:title", content: "Surveillance map — CropXense" },
       {
         property: "og:description",
-        content: "District GIS view of crop disease hotspots, sensors and pest traps across Maharashtra.",
+        content: "District GIS view of crop disease hotspots, sensors and pest traps across India.",
       },
     ],
   }),
@@ -178,7 +178,7 @@ function MapPage() {
       </aside>
 
       <Panel
-        title="Maharashtra surveillance sheet"
+        title="India surveillance sheet"
         meta={<Updated minutes={9} />}
         bodyClassName="h-[calc(100vh-190px)] min-h-[520px]"
         className="[&_[data-demo]]:h-full"

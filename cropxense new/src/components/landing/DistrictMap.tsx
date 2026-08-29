@@ -7,25 +7,25 @@ type District = { id: string; name: string; level: RiskLevel; cases: number };
 
 const GRID: District[][] = [
   [
-    { id: "dhule", name: "Dhule", level: "Moderate", cases: 7 },
-    { id: "jalgaon", name: "Jalgaon", level: "High", cases: 16 },
-    { id: "akola", name: "Akola", level: "High", cases: 19 },
-    { id: "amravati", name: "Amravati", level: "High", cases: 14 },
+    { id: "amritsar", name: "Amritsar", level: "Low", cases: 3 },
+    { id: "ludhiana", name: "Ludhiana", level: "High", cases: 22 },
+    { id: "jaipur", name: "Jaipur", level: "Low", cases: 4 },
+    { id: "lucknow", name: "Lucknow", level: "Low", cases: 2 },
+    { id: "patna", name: "Patna", level: "Low", cases: 3 },
+  ],
+  [
+    { id: "ahmedabad", name: "Ahmedabad", level: "Low", cases: 4 },
+    { id: "indore", name: "Indore", level: "Moderate", cases: 8 },
+    { id: "amravati", name: "Amravati", level: "High", cases: 27 },
     { id: "nagpur", name: "Nagpur", level: "Moderate", cases: 9 },
+    { id: "bardhaman", name: "Bardhaman", level: "High", cases: 14 },
   ],
   [
-    { id: "nashik", name: "Nashik", level: "Low", cases: 4 },
-    { id: "sambhajinagar", name: "Chh. Sambhajinagar", level: "Moderate", cases: 6 },
-    { id: "yavatmal", name: "Yavatmal", level: "High", cases: 13 },
-    { id: "wardha", name: "Wardha", level: "Moderate", cases: 8 },
-    { id: "chandrapur", name: "Chandrapur", level: "Moderate", cases: 6 },
-  ],
-  [
-    { id: "pune", name: "Pune", level: "Low", cases: 3 },
-    { id: "beed", name: "Beed", level: "Low", cases: 3 },
-    { id: "latur", name: "Latur", level: "Moderate", cases: 5 },
-    { id: "solapur", name: "Solapur", level: "Low", cases: 2 },
-    { id: "kolhapur", name: "Kolhapur", level: "Low", cases: 1 },
+    { id: "belgaum", name: "Belgaum", level: "Low", cases: 3 },
+    { id: "guntur", name: "Guntur", level: "High", cases: 18 },
+    { id: "thanjavur", name: "Thanjavur", level: "High", cases: 19 },
+    { id: "mysore", name: "Mysore", level: "Moderate", cases: 5 },
+    { id: "palakkad", name: "Palakkad", level: "Low", cases: 2 },
   ],
 ];
 
@@ -93,7 +93,7 @@ export function DistrictMap({
   return (
     <div className="border border-line bg-surface">
       <header className="flex items-center justify-between gap-2 border-b border-line bg-surface-2 px-3 py-2">
-        <span className="text-caption">Maharashtra — district risk, current week</span>
+        <span className="text-caption">India — district risk, current week</span>
         <span className="num text-[0.75rem] text-ink-2">Updated 38 min ago</span>
       </header>
       <div className="p-3">
@@ -101,7 +101,7 @@ export function DistrictMap({
           viewBox="0 0 470 280"
           className="block h-auto w-full"
           role="img"
-          aria-label="Choropleth map of Maharashtra districts shaded and hatched by crop risk level"
+          aria-label="Choropleth map of India districts shaded and hatched by crop risk level"
         >
           <defs>
             <pattern id="hx-dense" width="4" height="4" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">

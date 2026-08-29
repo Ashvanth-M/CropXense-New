@@ -102,7 +102,7 @@ export function FieldSurveyVisual() {
       <div className="text-center">
         <p className="text-caption">Field surveillance network</p>
         <p className="mt-1 text-[0.8125rem] text-ink-2">
-          Real-time crop health monitoring across Maharashtra
+          Real-time crop health monitoring across India
         </p>
       </div>
     </div>

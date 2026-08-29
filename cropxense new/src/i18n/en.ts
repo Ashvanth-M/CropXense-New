@@ -1,6 +1,6 @@
 export const en = {
   "app.name": "CropXense",
-  "app.owner": "Department of Agriculture, Government of Maharashtra",
+  "app.owner": "Department of Agriculture, Government of India",
 
   "nav.home": "Home",
   "nav.overview": "Overview",
