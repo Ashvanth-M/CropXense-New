@@ -13,13 +13,11 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
 import {
-  ROLE_DESCRIPTIONS,
-  ROLE_LABELS,
   ROLE_REDIRECT,
   type UserRole,
 } from "@/auth/roles";
 import { DISTRICTS, CROPS } from "@/data/reference";
-import { LANGS } from "@/i18n";
+import { LANGS, useT } from "@/i18n";
 import { Sprout, Shield, FlaskConical, CheckCircle2, ArrowRight } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -47,6 +45,7 @@ const ROLES: UserRole[] = ["farmer", "officer", "expert"];
 function SignupPage() {
   const { signup } = useAuth();
   const navigate = useNavigate();
+  const { t, tCrop, tDistrict, tRole, tRoleDesc } = useT();
 
   const [step, setStep] = useState<"role" | "form" | "done">("role");
   const [role, setRole] = useState<UserRole>("farmer");
@@ -81,11 +80,11 @@ function SignupPage() {
     setError(null);
 
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(t("auth.passwordMismatch"));
       return;
     }
     if (!terms) {
-      setError("Please agree to the terms of use.");
+      setError(t("auth.termsRequired"));
       return;
     }
 
@@ -107,7 +106,7 @@ function SignupPage() {
         void navigate({ to: ROLE_REDIRECT[result.user!.role] ?? "/farmer" });
       }, 1200);
     } else {
-      setError(result.error ?? "Unable to create account.");
+      setError(result.error ?? t("auth.signupError"));
     }
   }
 
@@ -117,9 +116,9 @@ function SignupPage() {
         <div className="mx-auto flex size-14 items-center justify-center rounded-full border border-leaf bg-leaf/10 text-leaf">
           <CheckCircle2 className="size-8" />
         </div>
-        <h1 className="mt-4 font-expanded text-[1.625rem]">Account Created</h1>
+        <h1 className="mt-4 font-expanded text-[1.625rem]">{t("auth.accountCreated")}</h1>
         <p className="mt-2 text-[0.875rem] text-ink-2">
-          Welcome to CropXense, <strong>{name}</strong>. Opening your {ROLE_LABELS[role]} workspace…
+          {t("auth.welcomeOpening", { name, role: tRole(role) })}
         </p>
       </div>
     );
@@ -128,10 +127,10 @@ function SignupPage() {
   if (step === "role") {
     return (
       <div>
-        <span className="text-caption text-forest">CropXense Account Creation</span>
-        <h1 className="mt-1 font-expanded text-[1.75rem]">Create your CropXense account</h1>
+        <span className="text-caption text-forest">{t("auth.signUpCaption")}</span>
+        <h1 className="mt-1 font-expanded text-[1.75rem]">{t("auth.signUpTitle")}</h1>
         <p className="mt-1 text-[0.9375rem] text-ink-2">
-          Choose how you'll use CropXense.
+          {t("auth.signUpSubtitle")}
         </p>
 
         {/* EXACTLY 3 Role Selection Cards */}
@@ -155,11 +154,11 @@ function SignupPage() {
                 </span>
                 <span className="flex-1">
                   <span className="flex items-center justify-between">
-                    <span className="block text-[1rem] font-bold text-ink">{ROLE_LABELS[r]}</span>
+                    <span className="block text-[1rem] font-bold text-ink">{tRole(r)}</span>
                     <ArrowRight className="size-4 text-ink-2 group-hover:text-forest transition-colors" />
                   </span>
                   <span className="mt-1 block text-[0.8125rem] text-ink-2 leading-relaxed">
-                    {ROLE_DESCRIPTIONS[r]}
+                    {tRoleDesc(r)}
                   </span>
                 </span>
               </button>
@@ -168,9 +167,9 @@ function SignupPage() {
         </div>
 
         <p className="mt-6 text-center text-[0.875rem] text-ink-2">
-          Already have an account?{" "}
+          {t("auth.alreadyHaveAccount")}{" "}
           <Link to="/login" className="font-semibold text-forest hover:underline">
-            Sign in
+            {t("action.signIn")}
           </Link>
         </p>
       </div>
@@ -185,12 +184,12 @@ function SignupPage() {
         onClick={() => setStep("role")}
         className="text-[0.8125rem] font-semibold text-forest hover:underline"
       >
-        ← Change role ({ROLE_LABELS[role]})
+        {t("auth.changeRole", { role: tRole(role) })}
       </button>
 
-      <h1 className="mt-2 font-expanded text-[1.625rem]">Complete Registration</h1>
+      <h1 className="mt-2 font-expanded text-[1.625rem]">{t("auth.completeReg")}</h1>
       <p className="mt-1 text-[0.875rem] text-ink-2">
-        Registering as <strong className="text-ink">{ROLE_LABELS[role]}</strong>
+        {t("auth.registeringAs")} <strong className="text-ink">{tRole(role)}</strong>
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4 text-[0.875rem]">
@@ -202,7 +201,7 @@ function SignupPage() {
 
         <div>
           <label htmlFor="signup-name" className="block text-[0.8125rem] font-semibold text-ink">
-            Full Name
+            {t("auth.fullName")}
           </label>
           <input
             id="signup-name"
@@ -218,7 +217,7 @@ function SignupPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="signup-mobile" className="block text-[0.8125rem] font-semibold text-ink">
-              Mobile Number
+              {t("auth.mobileNumber")}
             </label>
             <input
               id="signup-mobile"
@@ -233,7 +232,7 @@ function SignupPage() {
 
           <div>
             <label htmlFor="signup-email" className="block text-[0.8125rem] font-semibold text-ink">
-              Email Address
+              {t("auth.emailAddress")}
             </label>
             <input
               id="signup-email"
@@ -250,7 +249,7 @@ function SignupPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="signup-password" className="block text-[0.8125rem] font-semibold text-ink">
-              Password
+              {t("auth.passwordLabel")}
             </label>
             <input
               id="signup-password"
@@ -264,7 +263,7 @@ function SignupPage() {
           </div>
           <div>
             <label htmlFor="signup-confirm" className="block text-[0.8125rem] font-semibold text-ink">
-              Confirm Password
+              {t("auth.confirmPassword")}
             </label>
             <input
               id="signup-confirm"
@@ -281,10 +280,10 @@ function SignupPage() {
         {/* ROLE-SPECIFIC FIELDS */}
         {role === "farmer" && (
           <div className="rounded-[var(--r)] border border-line bg-surface-2 p-3.5 space-y-3">
-            <span className="text-caption text-forest">Farm Details</span>
+            <span className="text-caption text-forest">{t("auth.farmDetails")}</span>
             <div className="grid gap-3 sm:grid-cols-3">
               <div>
-                <label className="block text-[0.75rem] font-semibold text-ink">Farm Plot Name</label>
+                <label className="block text-[0.75rem] font-semibold text-ink">{t("auth.farmPlotName")}</label>
                 <input
                   type="text"
                   value={farmName}
@@ -294,7 +293,7 @@ function SignupPage() {
                 />
               </div>
               <div>
-                <label className="block text-[0.75rem] font-semibold text-ink">Primary Crop</label>
+                <label className="block text-[0.75rem] font-semibold text-ink">{t("auth.primaryCrop")}</label>
                 <select
                   value={primaryCrop}
                   onChange={(e) => setPrimaryCrop(e.target.value)}
@@ -302,13 +301,13 @@ function SignupPage() {
                 >
                   {CROPS.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {tCrop(c.id)}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-[0.75rem] font-semibold text-ink">Area (Hectares)</label>
+                <label className="block text-[0.75rem] font-semibold text-ink">{t("field.areaHectares")}</label>
                 <input
                   type="number"
                   step="0.1"
@@ -324,9 +323,9 @@ function SignupPage() {
 
         {role === "officer" && (
           <div className="rounded-[var(--r)] border border-line bg-surface-2 p-3.5">
-            <span className="text-caption text-forest">Extension Subdivision</span>
+            <span className="text-caption text-forest">{t("auth.extensionSubdivision")}</span>
             <div className="mt-2">
-              <label className="block text-[0.75rem] font-semibold text-ink">Sub-Division Jurisdiction</label>
+              <label className="block text-[0.75rem] font-semibold text-ink">{t("auth.subdivisionJurisdiction")}</label>
               <input
                 type="text"
                 value={subdivision}
@@ -340,18 +339,18 @@ function SignupPage() {
 
         {role === "expert" && (
           <div className="rounded-[var(--r)] border border-line bg-surface-2 p-3.5">
-            <span className="text-caption text-forest">Scientific Specialization</span>
+            <span className="text-caption text-forest">{t("auth.scientificSpec")}</span>
             <div className="mt-2">
-              <label className="block text-[0.75rem] font-semibold text-ink">Area of Expertise</label>
+              <label className="block text-[0.75rem] font-semibold text-ink">{t("auth.expertiseArea")}</label>
               <select
                 value={expertiseArea}
                 onChange={(e) => setExpertiseArea(e.target.value)}
                 className="mt-1 w-full border border-line bg-paper px-2.5 py-1.5 text-[0.8125rem] outline-none focus:border-forest"
               >
-                <option value="Plant Pathology">Plant Pathology (Fungal & Bacterial Diseases)</option>
-                <option value="Agricultural Entomology">Agricultural Entomology (Pests & Vectors)</option>
-                <option value="Agronomy & Crop Physiology">Agronomy & Crop Physiology</option>
-                <option value="Soil & Environmental Chemistry">Soil & Environmental Chemistry</option>
+                <option value="Plant Pathology">{t("expertise.plantPathology")}</option>
+                <option value="Agricultural Entomology">{t("expertise.entomology")}</option>
+                <option value="Agronomy & Crop Physiology">{t("expertise.agronomy")}</option>
+                <option value="Soil & Environmental Chemistry">{t("expertise.soil")}</option>
               </select>
             </div>
           </div>
@@ -360,7 +359,7 @@ function SignupPage() {
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="signup-district" className="block text-[0.8125rem] font-semibold text-ink">
-              District
+              {t("field.district")}
             </label>
             <select
               id="signup-district"
@@ -370,14 +369,14 @@ function SignupPage() {
             >
               {DISTRICTS.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name}
+                  {tDistrict(d.id)}
                 </option>
               ))}
             </select>
           </div>
           <div>
             <label htmlFor="signup-language" className="block text-[0.8125rem] font-semibold text-ink">
-              Preferred Language
+              {t("auth.preferredLanguage")}
             </label>
             <select
               id="signup-language"
@@ -402,7 +401,7 @@ function SignupPage() {
             className="mt-0.5 size-4 accent-forest"
           />
           <span>
-            I agree to the <span className="font-semibold text-forest">Terms of Use</span> and data privacy policy.
+            {t("auth.termsAgree")}
           </span>
         </label>
 
@@ -411,14 +410,14 @@ function SignupPage() {
           disabled={loading}
           className="flex min-h-[46px] w-full items-center justify-center border border-forest bg-forest text-[0.9375rem] font-semibold text-surface hover:bg-[#0e2b20] disabled:opacity-60"
         >
-          {loading ? "Creating account…" : `Create ${ROLE_LABELS[role]} Account`}
+          {loading ? t("auth.creatingAccount") : t("auth.createBtn", { role: tRole(role) })}
         </button>
       </form>
 
       <p className="mt-5 text-center text-[0.8125rem] text-ink-2">
-        Already registered?{" "}
+        {t("auth.alreadyRegistered")}{" "}
         <Link to="/login" className="font-semibold text-forest hover:underline">
-          Sign in
+          {t("action.signIn")}
         </Link>
       </p>
     </div>

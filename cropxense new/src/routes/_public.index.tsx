@@ -63,19 +63,21 @@ function Section({
 
 /* ---------- 2. problem ---------- */
 
-const TIMELINE = [
-  { day: 0, label: "Day 0", text: "Infection begins" },
-  { day: 6, label: "Day 6", text: "First visible symptom" },
-  { day: 9, label: "Day 9", text: "Farmer notices" },
-  { day: 14, label: "Day 14", text: "Advice reaches farmer" },
-];
-
 function ProblemTimeline() {
+  const { t } = useT();
   const span = 16;
   const pct = (d: number) => (d / span) * 100;
+
+  const timeline = [
+    { day: 0, label: t("landing.day0"), text: t("landing.infectionBegins") },
+    { day: 6, label: t("landing.day6"), text: t("landing.firstSymptom") },
+    { day: 9, label: t("landing.day9"), text: t("landing.farmerNotices") },
+    { day: 14, label: t("landing.day14"), text: t("landing.adviceReaches") },
+  ];
+
   return (
     <div className="border border-line bg-surface p-4">
-      <p className="text-caption">Typical delay between infection and advice</p>
+      <p className="text-caption">{t("landing.problemTimeline")}</p>
       <div className="relative mt-6 h-[76px]">
         <div
           className="absolute inset-y-0"
@@ -87,42 +89,27 @@ function ProblemTimeline() {
           }}
         />
         <div className="absolute inset-x-0 top-[26px] h-px bg-line" />
-        {TIMELINE.map((t) => (
+        {timeline.map((tItem) => (
           <div
-            key={t.day}
+            key={tItem.day}
             className="absolute top-0 w-[132px] -translate-x-1/2 text-center"
-            style={{ left: `${Math.min(Math.max(pct(t.day), 6), 94)}%` }}
+            style={{ left: `${Math.min(Math.max(pct(tItem.day), 6), 94)}%` }}
           >
-            <p className="num text-[0.75rem] font-semibold">{t.label}</p>
+            <p className="num text-[0.75rem] font-semibold">{tItem.label}</p>
             <div className="mx-auto mt-1 h-[14px] w-px bg-ink" />
-            <p className="mt-1 text-[0.75rem] leading-tight text-ink-2">{t.text}</p>
+            <p className="mt-1 text-[0.75rem] leading-tight text-ink-2">{tItem.text}</p>
           </div>
         ))}
         <p
           className="absolute bottom-0 text-[0.75rem] font-semibold text-amber"
           style={{ left: "1%" }}
         >
-          The window CropXense targets
+          {t("landing.windowTarget")}
         </p>
       </div>
     </div>
   );
 }
-
-const PROBLEMS = [
-  {
-    label: "Visibility",
-    body: "Damage becomes visible only after the pathogen or pest has already spread through part of the field. By the time a farmer can see it, the cheapest response window has closed.",
-  },
-  {
-    label: "Reach",
-    body: "Extension staff cover large areas with limited field days. Laboratory diagnosis is accurate but not immediate, and a sample sent today may return a result after the decision was needed.",
-  },
-  {
-    label: "Fragmentation",
-    body: "Weather, crop stage, variety, soil condition and local pest history all carry risk signal. They sit in separate systems and are never combined at the level of an individual farm.",
-  },
-];
 
 /* ---------- 3. how it works ---------- */
 
@@ -177,14 +164,6 @@ function StepDiagram({ i }: { i: number }) {
   );
 }
 
-const STEPS = [
-  ["Detect", "A field image, a sensor reading or a trap count is turned into a candidate finding with a confidence value and marked evidence regions."],
-  ["Predict", "Weather, crop stage and local case history are combined into a 7-day infection-risk curve for that specific parcel."],
-  ["Act", "The farmer receives an advisory in Marathi, Hindi or English — cultural and biological measures first, chemical only with an extension officer's approval."],
-  ["Verify", "A plant-protection officer reviews the evidence and confirms, corrects or rejects the finding. The case status changes only after that review."],
-  ["Learn", "Every confirmed correction returns to the model as labelled training signal, and the district risk baseline is updated."],
-];
-
 /* ---------- 4. signal fusion ---------- */
 
 type SignalRow = {
@@ -195,33 +174,55 @@ type SignalRow = {
   scope: string;
 };
 
-const SIGNALS: SignalRow[] = [
-  { signal: "Field image", source: "Farmer or officer upload", refresh: "On demand", tells: "Lesion type, severity, affected area", scope: "Parcel" },
-  { signal: "Sensor", source: "In-field node", refresh: "15 min", tells: "Leaf wetness, soil moisture, relative humidity", scope: "Parcel" },
-  { signal: "Weather", source: "IMD grid + station", refresh: "Hourly", tells: "Infection-favourable conditions", scope: "Block" },
-  { signal: "Pest trap", source: "Pheromone / light trap count", refresh: "Weekly", tells: "Population against economic threshold", scope: "Village" },
-  { signal: "History", source: "Confirmed case archive", refresh: "Continuous", tells: "Local recurrence risk", scope: "District" },
-];
-
-/* ---------- 8. lifecycle ---------- */
-
-const LIFECYCLE = [
-  ["AI detected", "Candidate finding with confidence and marked evidence."],
-  ["Awaiting validation", "Queued to a plant-protection officer. Nothing is published as fact yet."],
-  ["Expert confirmed", "Officer confirms or corrects the finding on the evidence shown."],
-  ["Field confirmed", "Ground check records what was actually found in the plot."],
-  ["Resolved", "Outcome recorded and returned to the model and the district baseline."],
-];
-
 function Landing() {
   const [district, setDistrict] = useState<string | null>("akola");
+  const { t } = useT();
+
+  const problems = [
+    {
+      label: t("landing.visibility"),
+      body: t("landing.visibilityText"),
+    },
+    {
+      label: t("landing.reach"),
+      body: t("landing.reachText"),
+    },
+    {
+      label: t("landing.fragmentation"),
+      body: t("landing.fragmentationText"),
+    },
+  ];
+
+  const steps = [
+    [t("landing.detect"), t("landing.detectText")],
+    [t("landing.predict"), t("landing.predictText")],
+    [t("landing.act"), t("landing.actText")],
+    [t("landing.verify"), t("landing.verifyText")],
+    [t("landing.learn"), t("landing.learnText")],
+  ];
+
+  const signals: SignalRow[] = [
+    { signal: t("landing.sigFieldImage"), source: t("landing.sigFieldImageSrc"), refresh: t("landing.sigFieldImageRefresh"), tells: t("landing.sigFieldImageTells"), scope: t("landing.sigFieldImageScope") },
+    { signal: t("landing.sigSensor"), source: t("landing.sigSensorSrc"), refresh: t("landing.sigSensorRefresh"), tells: t("landing.sigSensorTells"), scope: t("landing.sigSensorScope") },
+    { signal: t("landing.sigWeather"), source: t("landing.sigWeatherSrc"), refresh: t("landing.sigWeatherRefresh"), tells: t("landing.sigWeatherTells"), scope: t("landing.sigWeatherScope") },
+    { signal: t("landing.sigTrap"), source: t("landing.sigTrapSrc"), refresh: t("landing.sigTrapRefresh"), tells: t("landing.sigTrapTells"), scope: t("landing.sigTrapScope") },
+    { signal: t("landing.sigHistory"), source: t("landing.sigHistorySrc"), refresh: t("landing.sigHistoryRefresh"), tells: t("landing.sigHistoryTells"), scope: t("landing.sigHistoryScope") },
+  ];
+
+  const lifecycle = [
+    [t("landing.lcDetected"), t("landing.lcDetectedText")],
+    [t("landing.lcAwaiting"), t("landing.lcAwaitingText")],
+    [t("landing.lcConfirmed"), t("landing.lcConfirmedText")],
+    [t("landing.lcField"), t("landing.lcFieldText")],
+    [t("landing.lcResolved"), t("landing.lcResolvedText")],
+  ];
 
   const signalCols: Column<SignalRow>[] = [
-    { key: "signal", header: "Signal", width: "16%" },
-    { key: "source", header: "Source", width: "22%" },
-    { key: "refresh", header: "Refresh", width: "12%" },
-    { key: "tells", header: "What it tells us", width: "34%" },
-    { key: "scope", header: "Scope", width: "12%" },
+    { key: "signal", header: t("landing.colSignal"), width: "16%" },
+    { key: "source", header: t("landing.colSource"), width: "22%" },
+    { key: "refresh", header: t("landing.colRefresh"), width: "12%" },
+    { key: "tells", header: t("landing.colTells"), width: "34%" },
+    { key: "scope", header: t("landing.colScope"), width: "12%" },
   ];
 
   return (
@@ -231,33 +232,32 @@ function Landing() {
         <div className="mx-auto grid max-w-[1200px] gap-10 px-4 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <p className="text-caption">
-              Government of Maharashtra · Smart India Hackathon 2026 · PS 26131
+              {t("landing.govLabel")}
             </p>
             <h1 id="hero-h" className="mt-4 font-expanded text-[2.5rem] leading-[1.08]">
-              Detect crop threats before they become crop losses.
+              {t("landing.heroTitle")}
             </h1>
             <p className="mt-4 max-w-lg text-[1rem] text-ink-2">
-              CropXense combines field images, sensor signals, weather patterns and local outbreak
-              intelligence so farmers and agriculture teams can act while a problem is still small.
+              {t("landing.heroSubtitle")}
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <Link
                 to="/signup"
                 className="inline-flex min-h-[44px] items-center justify-center border border-forest bg-forest px-4 text-[0.9375rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20]"
               >
-                Get started
+                {t("action.getStarted")}
               </Link>
               <Link
                 to="/login"
                 className="inline-flex min-h-[44px] items-center justify-center border border-ink/70 bg-surface px-4 text-[0.9375rem] font-semibold transition-colors hover:bg-surface-2"
               >
-                Sign in
+                {t("action.signIn")}
               </Link>
               <a
                 href="#surveillance"
                 className="inline-flex min-h-[44px] items-center justify-center border border-transparent px-4 text-[0.9375rem] font-semibold transition-colors hover:bg-surface-2"
               >
-                Explore surveillance
+                {t("action.exploreSurveillance")}
               </a>
             </div>
           </div>
@@ -270,13 +270,13 @@ function Landing() {
       {/* 2. PROBLEM */}
       <Section
         id="problem"
-        n="01"
-        title="The loss happens in the gap between infection and advice."
-        lead="Nothing in that gap is missing information — the information exists, just not in one place and not in time."
+        n={t("landing.problemNum")}
+        title={t("landing.problemTitle")}
+        lead={t("landing.problemLead")}
       >
         <ProblemTimeline />
         <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {PROBLEMS.map((p) => (
+          {problems.map((p) => (
             <div key={p.label} className="border border-line bg-surface p-4">
               <p className="text-caption">{p.label}</p>
               <p className="mt-2 text-[0.9375rem] text-ink-2">{p.body}</p>
@@ -288,11 +288,11 @@ function Landing() {
       {/* 3. HOW IT WORKS */}
       <Section
         id="how"
-        n="02"
-        title="Five ordered stages, each with a human checkpoint."
+        n={t("landing.howNum")}
+        title={t("landing.howTitle")}
       >
         <ol className="border border-line bg-surface">
-          {STEPS.map(([name, text], i) => (
+          {steps.map(([name, text], i) => (
             <li
               key={name}
               className="grid items-center gap-4 border-b border-line p-4 last:border-b-0 md:grid-cols-[48px_1fr_140px]"
@@ -313,16 +313,16 @@ function Landing() {
       {/* 4. SIGNAL FUSION */}
       <Section
         id="signals"
-        n="03"
-        title="Five inputs, one parcel-level verdict."
-        lead="Each input is weak on its own. Combined against the same parcel and the same week, they become a decision."
+        n={t("landing.signalsNum")}
+        title={t("landing.signalsTitle")}
+        lead={t("landing.signalsLead")}
       >
         <SignalWeave variant="band" />
         <div className="mt-6">
           <DataTable
-            caption="Signal inputs, their sources, refresh rate and what each contributes"
+            caption={t("landing.signalCaption")}
             columns={signalCols}
-            rows={SIGNALS}
+            rows={signals}
             rowKey={(r) => r.signal}
           />
         </div>
@@ -331,9 +331,9 @@ function Landing() {
       {/* 5. DETECTION */}
       <Section
         id="detection"
-        n="04"
-        title="Crop health detection, with its reasoning exposed."
-        lead="A live example. Switch between the submitted sample and the analysis overlay, and open the evidence panel to see what the assessment rests on."
+        n={t("landing.detectionNum")}
+        title={t("landing.detectionTitle")}
+        lead={t("landing.detectionLead")}
       >
         <LeafAnalysisCard />
       </Section>
@@ -341,9 +341,9 @@ function Landing() {
       {/* 6. FORECAST */}
       <Section
         id="forecast"
-        n="05"
-        title="Risk forecasting for the week ahead."
-        lead="Select a day to see the conditions driving that day's infection risk."
+        n={t("landing.forecastNum")}
+        title={t("landing.forecastTitle")}
+        lead={t("landing.forecastLead")}
       >
         <RiskForecast />
       </Section>
@@ -351,33 +351,33 @@ function Landing() {
       {/* 7. GIS + COMMAND CENTRE */}
       <Section
         id="surveillance"
-        n="06"
-        title="District surveillance and field-visit prioritisation."
+        n={t("landing.survNum")}
+        title={t("landing.survTitle")}
       >
         <div className="grid gap-4 lg:grid-cols-2">
           <DistrictMap selected={district} onSelect={setDistrict} />
           <DistrictRanking selected={district} onSelect={setDistrict} />
         </div>
         <p className="mt-3 text-[0.875rem] text-ink-2">
-          Officer view — district-level surveillance and field-visit prioritisation.
+          {t("landing.survCaption")}
         </p>
       </Section>
 
       {/* 8. EXPERT VALIDATION */}
       <Section
         id="validation"
-        n="07"
-        title="Every case carries a human checkpoint."
+        n={t("landing.validationNum")}
+        title={t("landing.validationTitle")}
       >
         <ol className="grid gap-0 border border-line bg-surface md:grid-cols-5">
-          {LIFECYCLE.map(([name, text], i) => (
+          {lifecycle.map(([name, text], i) => (
             <li
               key={name}
               className="relative border-b border-line p-4 last:border-b-0 md:border-b-0 md:border-e md:last:border-e-0"
             >
               <p className="num text-[0.75rem] text-ink-2">
                 {String(i + 1).padStart(2, "0")}
-                {i < LIFECYCLE.length - 1 ? " →" : ""}
+                {i < lifecycle.length - 1 ? " →" : ""}
               </p>
               <p className="mt-1 text-[0.9375rem] font-semibold">{name}</p>
               <p className="mt-1 text-[0.875rem] text-ink-2">{text}</p>
@@ -386,38 +386,31 @@ function Landing() {
         </ol>
 
         <div className="mt-6 max-w-3xl">
-          <h3 className="text-[1.25rem]">The system does not diagnose alone</h3>
+          <h3 className="text-[1.25rem]">{t("landing.noAloneDiag")}</h3>
           <p className="mt-2 text-[0.9375rem] text-ink-2">
-            Every detection is published with its confidence value and the evidence it rests on —
-            image regions, sensor readings, weather window, and nearby confirmed cases. No advisory
-            reaches a farmer as a settled diagnosis: each one routes to a plant-protection officer
-            who can confirm, correct or reject it. Treatment guidance follows an IPM ladder —
-            cultural and biological measures first, chemical control only with an extension
-            officer's referral. Every correction is stored as labelled training signal and
-            returned to the model.
+            {t("landing.noAloneDiagText")}
           </p>
         </div>
       </Section>
 
       {/* 9. FINAL CTA */}
-      <Section id="start" n="08" title="Start with a district, or with a single leaf.">
+      <Section id="start" n={t("landing.ctaNum")} title={t("landing.ctaTitle")}>
         <div className="flex flex-col items-start gap-4 border border-line bg-surface p-6 sm:flex-row sm:items-center">
           <p className="max-w-xl text-[0.9375rem] text-ink-2">
-            The officer dashboard opens on live district reports. The farmer flow starts with one
-            photograph of an affected plant.
+            {t("landing.ctaText")}
           </p>
           <div className="flex flex-wrap gap-2 sm:ms-auto">
             <Link
               to="/signup"
               className="inline-flex min-h-[44px] items-center justify-center border border-forest bg-forest px-4 text-[0.9375rem] font-semibold text-surface transition-colors hover:bg-[#0e2b20]"
             >
-              Create your account
+              {t("action.signUp")}
             </Link>
             <Link
               to="/login"
               className="inline-flex min-h-[44px] items-center justify-center border border-ink/70 bg-surface px-4 text-[0.9375rem] font-semibold transition-colors hover:bg-surface-2"
             >
-              Sign in
+              {t("action.signIn")}
             </Link>
           </div>
         </div>
@@ -428,18 +421,16 @@ function Landing() {
           <div>
             <LogoHorizontal />
             <p className="mt-3 max-w-md text-[0.875rem] text-ink-2">
-              Crop disease and pest surveillance for the Department of Agriculture, Government of
-              Maharashtra. Smart India Hackathon 2026 · Problem Statement 26131.
+              {t("landing.footerDescription")}
             </p>
             <p className="mt-3 max-w-md text-[0.875rem] text-ink-2">
-              Demo data: all figures, cases, districts and readings shown on this page are
-              representative demonstration data, not operational records.
+              {t("landing.footerDemo")}
             </p>
           </div>
           <div className="flex flex-col items-start gap-3 md:items-end">
             <FooterLanguageSwitcher />
             <Link to="/styleguide" className="text-[0.875rem] underline underline-offset-2">
-              Style guide
+              {t("nav.styleguide")}
             </Link>
           </div>
         </div>
@@ -464,4 +455,3 @@ function FooterLanguageSwitcher() {
     </button>
   );
 }
-

@@ -84,6 +84,12 @@ type Ctx = {
   tDistrict: (districtId: string) => string;
   tSymptom: (symptom: string) => string;
   tRisk: (risk: string) => string;
+  tStatus: (status: string) => string;
+  tHealth: (health: string) => string;
+  tChannel: (channel: string) => string;
+  tRole: (role: string) => string;
+  tRoleDesc: (role: string) => string;
+  tRoleDashboard: (role: string) => string;
 };
 
 const I18nContext = createContext<Ctx | null>(null);
@@ -146,12 +152,66 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const tRisk = useCallback(
     (risk: string) => {
       const norm = risk?.toLowerCase();
-      if (norm === "high") return t("risk.high");
-      if (norm === "moderate") return t("risk.moderate");
-      if (norm === "low") return t("risk.low");
+      if (norm === "high") return t("risk.highShort");
+      if (norm === "moderate") return t("risk.moderateShort");
+      if (norm === "low") return t("risk.lowShort");
       return risk;
     },
     [lang, t],
+  );
+
+  /** Translate case statuses: 'detected' | 'awaiting_validation' | ... */
+  const tStatus = useCallback(
+    (status: string) => {
+      const key = `caseStatus.${status}` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? status.replace(/_/g, " ");
+    },
+    [lang],
+  );
+
+  /** Translate health statuses: 'healthy' | 'at_risk' | 'affected' */
+  const tHealth = useCallback(
+    (health: string) => {
+      const key = `status.${health}` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? health.replace(/_/g, " ");
+    },
+    [lang],
+  );
+
+  /** Translate signal channels: 'image' | 'sensor' | 'trap' | 'weather' | 'history' */
+  const tChannel = useCallback(
+    (channel: string) => {
+      const key = `channel.${channel}` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? channel;
+    },
+    [lang],
+  );
+
+  /** Translate role labels: 'farmer' | 'officer' | 'expert' */
+  const tRole = useCallback(
+    (role: string) => {
+      const key = `role.${role}` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? role;
+    },
+    [lang],
+  );
+
+  /** Translate role descriptions */
+  const tRoleDesc = useCallback(
+    (role: string) => {
+      const key = `role.${role}Desc` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? "";
+    },
+    [lang],
+  );
+
+  /** Translate role dashboard names */
+  const tRoleDashboard = useCallback(
+    (role: string) => {
+      const key = `role.${role}Dashboard` as TranslationKey;
+      return DICTS[lang]?.[key] ?? en[key] ?? "";
+    },
+    [lang],
   );
 
   const cycle = useCallback(() => {
@@ -162,8 +222,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ lang, setLang, cycle, t, tCrop, tStage, tDistrict, tSymptom, tRisk }),
-    [lang, cycle, t, tCrop, tStage, tDistrict, tSymptom, tRisk],
+    () => ({ lang, setLang, cycle, t, tCrop, tStage, tDistrict, tSymptom, tRisk, tStatus, tHealth, tChannel, tRole, tRoleDesc, tRoleDashboard }),
+    [lang, cycle, t, tCrop, tStage, tDistrict, tSymptom, tRisk, tStatus, tHealth, tChannel, tRole, tRoleDesc, tRoleDashboard],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

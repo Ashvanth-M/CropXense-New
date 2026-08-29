@@ -22,8 +22,6 @@ import { useAsync } from "@/hooks/useAsync";
 import {
   TODAY,
   assignFieldVisit,
-  cropName,
-  districtName,
   farmById,
   getDistrictRanking,
   getOutbreaks,
@@ -35,6 +33,7 @@ import {
   subscribe,
 } from "@/services";
 import type { CropHealthAssessment } from "@/types";
+import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/app/")({
   head: () => ({
@@ -77,6 +76,7 @@ const METRIC_FILTER: Record<string, (a: CropHealthAssessment) => boolean> = {
 
 function OverviewPage() {
   const { toast } = useToast();
+  const { t, tCrop, tDistrict } = useT();
   const [selected, setSelected] = useState<string | null>(null);
   const [openCase, setOpenCase] = useState<CropHealthAssessment | null>(null);
 
@@ -95,12 +95,12 @@ function OverviewPage() {
 
   const m = metricsQ.data;
   const metrics: Metric[] = [
-    { id: "fields", label: "Fields monitored", value: m?.fieldsMonitored ?? 0, delta: "+3 since yesterday" },
-    { id: "healthy", label: "Healthy", value: m?.healthy ?? 0, delta: "+5 since yesterday" },
-    { id: "atRisk", label: "At risk", value: m?.atRisk ?? 0, delta: "−2 since yesterday" },
-    { id: "outbreaks", label: "Active outbreaks", value: m?.activeOutbreaks ?? 0, delta: "+1 this week" },
-    { id: "pendingReview", label: "Pending expert review", value: m?.pendingReview ?? 0, delta: "+2 since yesterday" },
-    { id: "openFieldCases", label: "Open field cases", value: m?.openFieldCases ?? 0, delta: "3 due today" },
+    { id: "fields", label: t("officer.fieldsMonitored"), value: m?.fieldsMonitored ?? 0, delta: `+3 ${t("common.sinceYesterday")}` },
+    { id: "healthy", label: t("officer.healthy"), value: m?.healthy ?? 0, delta: `+5 ${t("common.sinceYesterday")}` },
+    { id: "atRisk", label: t("officer.atRisk"), value: m?.atRisk ?? 0, delta: `−2 ${t("common.sinceYesterday")}` },
+    { id: "outbreaks", label: t("officer.activeOutbreaks"), value: m?.activeOutbreaks ?? 0, delta: `+1 ${t("common.thisWeek")}` },
+    { id: "pendingReview", label: t("officer.pendingExpertReview"), value: m?.pendingReview ?? 0, delta: `+2 ${t("common.sinceYesterday")}` },
+    { id: "openFieldCases", label: t("officer.openFieldCases"), value: m?.openFieldCases ?? 0, delta: `3 ${t("common.dueToday")}` },
   ];
 
   const rows: Row[] = useMemo(() => {
@@ -111,8 +111,8 @@ function OverviewPage() {
       .map((a) => ({
         id: a.id,
         farm: farmById(a.farmId)?.name ?? a.farmId,
-        district: districtName(a.districtId),
-        crop: cropName(a.cropId),
+        district: tDistrict(a.districtId),
+        crop: tCrop(a.cropId),
         suspected: a.suspected,
         confidence: a.confidence,
         via: a.detectedVia.join(","),
@@ -120,24 +120,24 @@ function OverviewPage() {
         status: a.status,
         raw: a,
       }));
-  }, [queueQ.data, selected]);
+  }, [queueQ.data, selected, tCrop, tDistrict]);
 
   const columns: Column<Row>[] = [
-    { key: "id", header: "Case ID", width: "132px", render: (r) => <span className="num text-[0.8125rem]">{r.id}</span> },
-    { key: "farm", header: "Farm", sortable: true },
-    { key: "district", header: "District", sortable: true },
-    { key: "crop", header: "Crop", sortable: true },
-    { key: "suspected", header: "Suspected" },
-    { key: "confidence", header: "Confidence", numeric: true, sortable: true, render: (r) => <ConfidenceCell value={r.confidence} /> },
-    { key: "via", header: "Detected via", render: (r) => <ChannelIcons channels={r.raw.detectedVia} /> },
-    { key: "age", header: "Age", render: (r) => <span className="num text-[0.8125rem]">{r.age}</span> },
-    { key: "status", header: "Status", render: (r) => <CaseStatusChip status={r.raw.status} /> },
+    { key: "id", header: t("field.caseId"), width: "132px", render: (r) => <span className="num text-[0.8125rem]">{r.id}</span> },
+    { key: "farm", header: t("field.farm"), sortable: true },
+    { key: "district", header: t("field.district"), sortable: true },
+    { key: "crop", header: t("field.crop"), sortable: true },
+    { key: "suspected", header: t("field.suspected") },
+    { key: "confidence", header: t("field.confidence"), numeric: true, sortable: true, render: (r) => <ConfidenceCell value={r.confidence} /> },
+    { key: "via", header: t("field.detectedVia"), render: (r) => <ChannelIcons channels={r.raw.detectedVia} /> },
+    { key: "age", header: t("field.age"), render: (r) => <span className="num text-[0.8125rem]">{r.age}</span> },
+    { key: "status", header: t("field.health"), render: (r) => <CaseStatusChip status={r.raw.status} /> },
     {
       key: "raw",
-      header: "Action",
+      header: t("action.viewCase"),
       render: (r) => (
         <Button size="sm" variant="secondary" onClick={() => setOpenCase(r.raw)}>
-          Open case
+          {t("action.viewCase")}
         </Button>
       ),
     },
@@ -149,7 +149,7 @@ function OverviewPage() {
 
   return (
     <div className="flex flex-col gap-3">
-      <h1 className="sr-only">Officer overview</h1>
+      <h1 className="sr-only">{t("page.overview.title")}</h1>
 
       <div data-demo="metrics">
         <MetricStrip metrics={metrics} selected={selected} onSelect={setSelected} loading={metricsQ.loading} />
@@ -160,8 +160,8 @@ function OverviewPage() {
       <div className="grid gap-3 lg:grid-cols-12">
         <Panel
           className="lg:col-span-8"
-          title="Priority queue — act today"
-          meta={selected ? `Filtered: ${metrics.find((x) => x.id === selected)?.label}` : `${rows.length} cases`}
+          title={t("officer.priorityQueue")}
+          meta={selected ? t("officer.filteredLabel", { label: metrics.find((x) => x.id === selected)?.label ?? "" }) : t("officer.casesCount", { n: rows.length })}
         >
           {queueQ.loading ? (
             <div className="space-y-2 p-3">
@@ -180,7 +180,7 @@ function OverviewPage() {
         </Panel>
 
         <div className="flex flex-col gap-3 lg:col-span-4">
-          <Panel title="Emerging hotspots" meta={<Updated minutes={12} />}>
+          <Panel title={t("officer.emergingHotspots")} meta={<Updated minutes={12} />}>
             <ul>
               {outbreaksQ.loading
                 ? Array.from({ length: 3 }).map((_, i) => (
@@ -193,13 +193,13 @@ function OverviewPage() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[0.875rem] font-semibold">{o.threatName}</span>
                         <span className="block text-[0.75rem] text-ink-2">
-                          {districtName(o.districtId)} · <span className="num">{o.affectedFields}</span> fields
+                          {tDistrict(o.districtId)} · <span className="num">{o.affectedFields}</span> {t("common.fields")}
                         </span>
                       </span>
                       <Sparkline
                         values={o.trapTrend}
                         tone={RISK_TONE[o.risk] ?? "var(--ink-2)"}
-                        label={`7-day trend for ${o.threatName} in ${districtName(o.districtId)}`}
+                        label={`7-day trend for ${o.threatName} in ${tDistrict(o.districtId)}`}
                       />
                       <RiskChip risk={o.risk} />
                     </li>
@@ -207,14 +207,14 @@ function OverviewPage() {
             </ul>
           </Panel>
 
-          <Panel title="District risk ranking" meta="Today">
+          <Panel title={t("officer.districtRisk")} meta={t("common.today")}>
             <ul className="px-3 py-2">
               {ranking.map((d) => (
                 <li key={d.districtId} className="py-1.5">
                   <span className="flex items-baseline justify-between gap-2 text-[0.8125rem]">
-                    <span className="font-semibold">{d.name}</span>
+                    <span className="font-semibold">{tDistrict(d.districtId)}</span>
                     <span className="num text-ink-2">
-                      {d.score} · {d.openCases} open
+                      {d.score} · {d.openCases} {t("common.cases")}
                     </span>
                   </span>
                   <RankBar value={d.score} max={100} tone={RISK_TONE[d.risk] ?? "var(--ink-2)"} />
@@ -223,13 +223,13 @@ function OverviewPage() {
             </ul>
           </Panel>
 
-          <Panel title="Weather risk today" meta={<Updated minutes={12} />}>
+          <Panel title={t("farmer.weatherRisk")} meta={<Updated minutes={12} />}>
             <dl className="grid grid-cols-2 gap-x-3 gap-y-1 px-3 py-2 text-[0.8125rem]">
               {[
-                ["Relative humidity", `${weather.rhPct}%`],
-                ["Leaf wetness", `${weather.leafWetnessHrs} h`],
-                ["Rainfall 24 h", `${weather.rainfallMm} mm`],
-                ["Max temperature", `${weather.tMaxC} °C`],
+                [t("weather.rh"), `${weather.rhPct}%`],
+                [t("weather.leafWet"), `${weather.leafWetnessHrs} ${t("common.hr")}`],
+                [t("weather.rain"), `${weather.rainfallMm} mm`],
+                [t("weather.maxTemp"), `${weather.tMaxC} °C`],
               ].map(([k, v]) => (
                 <div key={k} className="flex items-baseline justify-between gap-2 border-b border-line py-1">
                   <dt className="text-ink-2">{k}</dt>
@@ -238,7 +238,7 @@ function OverviewPage() {
               ))}
             </dl>
             <p className="px-3 pb-2 text-[0.75rem] text-ink-2">
-              Amravati block — the conditions behind today's high-risk ranking.
+              {tDistrict("amravati")} — the conditions behind today's high-risk ranking.
             </p>
           </Panel>
         </div>
@@ -301,6 +301,7 @@ function CaseDrawer({
   onValidated: (label: string) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const { t, tCrop, tDistrict } = useT();
   if (!assessment) return null;
   const farm = farmById(assessment.farmId);
 
@@ -309,12 +310,12 @@ function CaseDrawer({
       <div className="space-y-4 text-[0.875rem]">
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
           {[
-            ["Case", assessment.id],
-            ["Farm", farm ? `${farm.name}, ${farm.village}` : assessment.farmId],
-            ["District", districtName(assessment.districtId)],
-            ["Crop", cropName(assessment.cropId)],
-            ["Affected area", `${assessment.affectedAreaHa} ha`],
-            ["Severity", `${assessment.severity} of 5`],
+            [t("field.caseId"), assessment.id],
+            [t("field.farm"), farm ? `${farm.name}, ${farm.village}` : assessment.farmId],
+            [t("field.district"), tDistrict(assessment.districtId)],
+            [t("field.crop"), tCrop(assessment.cropId)],
+            [t("field.area"), `${assessment.affectedAreaHa} ha`],
+            [t("field.severity"), `${assessment.severity} ${t("common.of")} 5`],
           ].map(([k, v]) => (
             <div key={k} className="border-b border-line py-1">
               <dt className="text-caption">{k}</dt>
@@ -324,15 +325,15 @@ function CaseDrawer({
         </dl>
 
         <div>
-          <p className="text-caption mb-1">Confidence</p>
+          <p className="text-caption mb-1">{t("field.confidence")}</p>
           <ConfidenceCell value={assessment.confidence} />
           <p className="mt-1 text-[0.8125rem] text-ink-2">
-            This is a candidate finding, not a diagnosis. It is published only after an officer confirms it.
+            {t("note.humanCheck")}
           </p>
         </div>
 
         <div>
-          <p className="text-caption mb-1">Detected through</p>
+          <p className="text-caption mb-1">{t("field.detectedVia")}</p>
           <div className="flex flex-wrap gap-1">
             {assessment.detectedVia.map((c) => (
               <ChannelTag key={c} channel={c} />
@@ -360,10 +361,10 @@ function CaseDrawer({
             onClick={async () => {
               setBusy(true);
               await validateCase(assessment.id, "confirmed", "Confirmed on the evidence shown.");
-              onValidated("Case confirmed and advisory released");
+              onValidated(t("toast.saved"));
             }}
           >
-            Confirm finding
+            {t("officer.confirmCase")}
           </Button>
           <Button
             variant="secondary"
@@ -371,10 +372,10 @@ function CaseDrawer({
             onClick={async () => {
               setBusy(true);
               await assignFieldVisit(assessment.id, isoDay(1));
-              onValidated("Field visit assigned for tomorrow");
+              onValidated(t("toast.fieldVisitAssigned"));
             }}
           >
-            Assign field visit
+            {t("officer.assignFieldVisit")}
           </Button>
           <Button
             variant="ghost"
@@ -382,10 +383,10 @@ function CaseDrawer({
             onClick={async () => {
               setBusy(true);
               await validateCase(assessment.id, "rejected", "Symptoms are abiotic; no pathogen recorded.");
-              onValidated("Case rejected and returned as training signal");
+              onValidated(t("officer.rejectCase"));
             }}
           >
-            Reject
+            {t("action.reject")}
           </Button>
         </div>
       </div>

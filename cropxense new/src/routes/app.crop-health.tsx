@@ -1,29 +1,21 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ScanLine,
   CheckCircle2,
-  AlertTriangle,
   X,
-  FileText,
   Search,
-  Filter,
-  UserCheck,
   Calendar,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { ConfidenceBar, SeverityMeter, StatusChip } from "@/components/ui/Status";
+import { SeverityMeter } from "@/components/ui/Status";
 import { useToast } from "@/components/ui/Toast";
-import { CaseStatusChip, ChannelIcons, ConfidenceCell, Panel, relTime, Updated } from "@/components/app/bits";
+import { CaseStatusChip, ConfidenceCell, Panel, relTime } from "@/components/app/bits";
 import { LeafPlate, SAMPLES } from "@/components/app/LeafPlate";
 import { Drawer } from "@/components/ui/Overlay";
 import { Skeleton } from "@/components/ui/Card";
 import { useAsync } from "@/hooks/useAsync";
 import {
   assignFieldVisit,
-  cropName,
-  districtName,
   farmById,
   getAssessments,
   isoDay,
@@ -34,6 +26,7 @@ import {
 } from "@/services";
 import type { CropHealthAssessment } from "@/types";
 import { cx } from "@/lib/cx";
+import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/app/crop-health")({
   head: () => ({
@@ -52,6 +45,7 @@ export const Route = createFileRoute("/app/crop-health")({
 
 function OfficerCropHealthPage() {
   const { toast } = useToast();
+  const { t, tCrop, tDistrict, tStatus } = useT();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedCase, setSelectedCase] = useState<CropHealthAssessment | null>(null);
@@ -100,19 +94,19 @@ function OfficerCropHealthPage() {
       <div className="border border-line bg-surface p-5 md:p-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <span className="text-caption text-forest">Farmer Upload Surveillance</span>
+            <span className="text-caption text-forest">{t("nav.cropHealth")}</span>
             <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">
-              Farmer Crop Health Submissions
+              {t("nav.cropHealth")}
             </h1>
             <p className="mt-1 text-[0.875rem] text-ink-2">
-              Review, validate, and respond to live leaf scans uploaded by farmers in your district.
+              {t("role.officerDesc")}
             </p>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="border border-forest/30 bg-forest/10 px-4 py-2 text-[0.8125rem]">
-              <span className="text-ink-2">Pending Validation:</span>{" "}
-              <span className="num font-bold text-forest">{pendingCount} cases</span>
+              <span className="text-ink-2">{t("officer.pendingExpertReview")}:</span>{" "}
+              <span className="num font-bold text-forest">{pendingCount} {t("common.cases")}</span>
             </div>
           </div>
         </div>
@@ -122,10 +116,10 @@ function OfficerCropHealthPage() {
       <div className="flex flex-col gap-3 border border-line bg-surface p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-1.5">
           {[
-            { id: "all", label: "All Submissions" },
-            { id: "pending", label: `Pending Review (${pendingCount})` },
-            { id: "confirmed", label: "Confirmed Cases" },
-            { id: "rejected", label: "Rejected" },
+            { id: "all", label: t("common.all") },
+            { id: "pending", label: `${t("caseStatus.awaiting_validation")} (${pendingCount})` },
+            { id: "confirmed", label: t("caseStatus.expert_confirmed") },
+            { id: "rejected", label: t("caseStatus.rejected") },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -147,7 +141,7 @@ function OfficerCropHealthPage() {
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ink-2" />
           <input
             type="text"
-            placeholder="Search farmer, farm, case ID or disease…"
+            placeholder={t("fields.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full border border-line bg-paper py-2 pl-9 pr-3 text-[0.8125rem] text-ink outline-none transition-colors focus:border-forest"
@@ -156,7 +150,7 @@ function OfficerCropHealthPage() {
       </div>
 
       {/* Submissions Feed / Table */}
-      <Panel title="Farmer Scan Feed" meta={`${filteredAssessments.length} records shown`}>
+      <Panel title={t("nav.cropHealth")} meta={`${filteredAssessments.length} ${t("common.cases")}`}>
         {assessmentsQ.loading ? (
           <div className="space-y-3 p-5">
             <Skeleton className="h-16 w-full" />
@@ -165,21 +159,21 @@ function OfficerCropHealthPage() {
           </div>
         ) : filteredAssessments.length === 0 ? (
           <div className="p-8 text-center text-[0.9375rem] text-ink-2">
-            No crop health uploads match the selected filters.
+            {t("empty.noCases")}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-[0.875rem]">
               <thead>
                 <tr className="border-b border-line bg-surface-2 text-caption text-ink-2">
-                  <th className="p-3.5 font-semibold">Case ID</th>
-                  <th className="p-3.5 font-semibold">Farmer & Field</th>
-                  <th className="p-3.5 font-semibold">Crop & Location</th>
-                  <th className="p-3.5 font-semibold">Suspected Diagnosis</th>
-                  <th className="p-3.5 font-semibold">Confidence</th>
-                  <th className="p-3.5 font-semibold">Uploaded</th>
-                  <th className="p-3.5 font-semibold">Status</th>
-                  <th className="p-3.5 text-right font-semibold">Action</th>
+                  <th className="p-3.5 font-semibold">{t("field.caseId")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.farm")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.crop")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.suspected")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.confidence")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.age")}</th>
+                  <th className="p-3.5 font-semibold">{t("field.health")}</th>
+                  <th className="p-3.5 text-right font-semibold">{t("action.viewCase")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -192,16 +186,16 @@ function OfficerCropHealthPage() {
                       </td>
                       <td className="p-3.5">
                         <p className="font-semibold text-ink">
-                          {farm?.ownerName ?? "Farmer"}
+                          {farm?.ownerName ?? t("role.farmer")}
                         </p>
                         <p className="text-[0.75rem] text-ink-2">
                           {farm?.name ?? a.farmId}
                         </p>
                       </td>
                       <td className="p-3.5">
-                        <p className="font-semibold text-ink">{cropName(a.cropId)}</p>
+                        <p className="font-semibold text-ink">{tCrop(a.cropId)}</p>
                         <p className="text-[0.75rem] text-ink-2">
-                          {farm?.village ?? districtName(a.districtId)}, {districtName(a.districtId)}
+                          {farm?.village ?? tDistrict(a.districtId)}, {tDistrict(a.districtId)}
                         </p>
                       </td>
                       <td className="p-3.5">
@@ -214,7 +208,7 @@ function OfficerCropHealthPage() {
                         <ConfidenceCell value={a.confidence} />
                       </td>
                       <td className="num p-3.5 text-[0.8125rem] text-ink-2">
-                        {relTime(a.detectedAt, TODAY)} ago
+                        {relTime(a.detectedAt, TODAY)}
                       </td>
                       <td className="p-3.5">
                         <CaseStatusChip status={a.status} />
@@ -225,7 +219,7 @@ function OfficerCropHealthPage() {
                           variant="secondary"
                           onClick={() => setSelectedCase(a)}
                         >
-                          Review & Validate
+                          {t("action.viewCase")}
                         </Button>
                       </td>
                     </tr>
@@ -242,48 +236,48 @@ function OfficerCropHealthPage() {
         <Drawer
           open
           onClose={() => setSelectedCase(null)}
-          title={`Review Case: ${selectedCase.id}`}
+          title={`${t("field.caseId")}: ${selectedCase.id}`}
         >
           <div className="space-y-5 text-[0.875rem]">
             {/* Header info */}
             <div className="border border-line bg-paper p-4">
-              <span className="text-caption text-forest">Suspected Finding</span>
+              <span className="text-caption text-forest">{t("field.suspected")}</span>
               <h3 className="font-expanded text-[1.25rem] font-bold text-ink">
                 {selectedCase.suspected}
               </h3>
               <p className="mt-1 text-[0.8125rem] text-ink-2">
-                Uploaded by{" "}
+                {t("field.owner")}:{" "}
                 <span className="font-semibold text-ink">
-                  {farmById(selectedCase.farmId)?.ownerName ?? "Farmer"}
+                  {farmById(selectedCase.farmId)?.ownerName ?? t("role.farmer")}
                 </span>{" "}
-                for field{" "}
+                · {t("field.farm")}:{" "}
                 <span className="font-semibold text-ink">
                   {farmById(selectedCase.farmId)?.name ?? selectedCase.farmId}
                 </span>{" "}
-                ({farmById(selectedCase.farmId)?.village ?? districtName(selectedCase.districtId)})
+                ({farmById(selectedCase.farmId)?.village ?? tDistrict(selectedCase.districtId)})
               </p>
             </div>
 
             {/* Metrics Grid */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Crop</span>
-                <p className="mt-1 font-semibold">{cropName(selectedCase.cropId)}</p>
+                <span className="text-caption">{t("field.crop")}</span>
+                <p className="mt-1 font-semibold">{tCrop(selectedCase.cropId)}</p>
               </div>
               <div className="border border-line bg-paper p-3">
-                <span className="text-caption">AI Confidence</span>
+                <span className="text-caption">{t("field.confidence")}</span>
                 <div className="mt-1">
                   <ConfidenceCell value={selectedCase.confidence} />
                 </div>
               </div>
               <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Severity</span>
+                <span className="text-caption">{t("field.severity")}</span>
                 <div className="mt-1">
                   <SeverityMeter level={selectedCase.severity} />
                 </div>
               </div>
               <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Current Status</span>
+                <span className="text-caption">{t("field.health")}</span>
                 <div className="mt-1">
                   <CaseStatusChip status={selectedCase.status} />
                 </div>
@@ -292,15 +286,15 @@ function OfficerCropHealthPage() {
 
             {/* Leaf Illustration Preview */}
             <div className="border border-line bg-paper p-4">
-              <span className="text-caption block mb-2 font-semibold">Analyzed Leaf Photograph Signal</span>
+              <span className="text-caption block mb-2 font-semibold">{t("expert.imageAnalysis")}</span>
               <div className="flex justify-center bg-surface p-4 border border-line">
-                <LeafPlate sample={SAMPLES[0]!} size={160} />
+                <LeafPlate sample={SAMPLES[0]!} analysis={true} className="max-w-[200px]" />
               </div>
             </div>
 
             {/* Evidence items */}
             <div>
-              <span className="text-caption block mb-2 font-semibold">Evidence & Signal Weights</span>
+              <span className="text-caption block mb-2 font-semibold">{t("expert.caseEvidence")}</span>
               <ul className="space-y-2">
                 {(selectedCase.evidence ?? []).map((e, i) => (
                   <li key={i} className="border border-line bg-paper p-3 text-[0.8125rem]">
@@ -313,7 +307,7 @@ function OfficerCropHealthPage() {
 
             {/* Officer Action Buttons */}
             <div className="space-y-2 border-t border-line pt-4">
-              <span className="text-caption block font-semibold text-forest">Extension Officer Validation Actions</span>
+              <span className="text-caption block font-semibold text-forest">{t("officer.priorityQueue")}</span>
               <div className="flex flex-wrap gap-2">
                 <Button
                   disabled={actionBusy}
@@ -322,7 +316,7 @@ function OfficerCropHealthPage() {
                     try {
                       await validateCase(selectedCase.id, "confirmed", "Confirmed on field inspection evidence.");
                       await issueAdvisory(selectedCase.id);
-                      toast("Case confirmed and advisory issued to farmer", "healthy");
+                      toast(t("toast.saved"), "healthy");
                       setSelectedCase(null);
                     } finally {
                       setActionBusy(false);
@@ -330,7 +324,7 @@ function OfficerCropHealthPage() {
                   }}
                 >
                   <CheckCircle2 className="size-4" />
-                  <span>Confirm Finding & Issue Advisory</span>
+                  <span>{t("officer.confirmCase")}</span>
                 </Button>
 
                 <Button
@@ -340,7 +334,7 @@ function OfficerCropHealthPage() {
                     setActionBusy(true);
                     try {
                       await assignFieldVisit(selectedCase.id, isoDay(1));
-                      toast("Field visit scheduled for tomorrow", "healthy");
+                      toast(t("toast.fieldVisitAssigned"), "healthy");
                       setSelectedCase(null);
                     } finally {
                       setActionBusy(false);
@@ -348,7 +342,7 @@ function OfficerCropHealthPage() {
                   }}
                 >
                   <Calendar className="size-4" />
-                  <span>Assign Field Visit</span>
+                  <span>{t("officer.assignFieldVisit")}</span>
                 </Button>
 
                 <Button
@@ -358,7 +352,7 @@ function OfficerCropHealthPage() {
                     setActionBusy(true);
                     try {
                       await validateCase(selectedCase.id, "rejected", "Symptoms appear abiotic/nutritional.");
-                      toast("Case marked as rejected / non-pathogenic");
+                      toast(t("officer.rejectCase"));
                       setSelectedCase(null);
                     } finally {
                       setActionBusy(false);
@@ -366,7 +360,7 @@ function OfficerCropHealthPage() {
                   }}
                 >
                   <X className="size-4" />
-                  <span>Reject Finding</span>
+                  <span>{t("action.reject")}</span>
                 </Button>
               </div>
             </div>

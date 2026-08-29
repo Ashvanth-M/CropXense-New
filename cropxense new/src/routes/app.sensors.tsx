@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import {
   CartesianGrid,
@@ -18,9 +18,10 @@ import { useToast } from "@/components/ui/Toast";
 import { Updated } from "@/components/app/bits";
 import { useAsync } from "@/hooks/useAsync";
 import { sensorBatterySeries, sensorDaySeries } from "@/data/instrumentSeries";
-import { DISTRICTS, districtName, farmById, getSensors, latestWeather } from "@/services";
+import { DISTRICTS, farmById, getSensors, latestWeather } from "@/services";
 import type { Sensor } from "@/types";
 import { cx } from "@/lib/cx";
+import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/app/sensors")({
   head: () => ({
@@ -45,10 +46,10 @@ export const Route = createFileRoute("/app/sensors")({
 
 type NodeState = "online" | "warning" | "offline";
 
-const STATE: Record<NodeState, { label: string; tone: string; glyph: string }> = {
-  online: { label: "Online", tone: "var(--leaf)", glyph: "●" },
-  warning: { label: "Warning", tone: "var(--amber)", glyph: "■" },
-  offline: { label: "Offline", tone: "var(--alert)", glyph: "▲" },
+const STATE: Record<NodeState, { labelKey: string; tone: string; glyph: string }> = {
+  online: { labelKey: "status.healthy", tone: "var(--leaf)", glyph: "●" },
+  warning: { labelKey: "status.watch", tone: "var(--amber)", glyph: "■" },
+  offline: { labelKey: "status.critical", tone: "var(--alert)", glyph: "▲" },
 };
 
 function nodeState(s: Sensor): NodeState {
@@ -58,13 +59,14 @@ function nodeState(s: Sensor): NodeState {
 }
 
 function StateDot({ state }: { state: NodeState }) {
+  const { t } = useT();
   const s = STATE[state];
   return (
     <span className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold" style={{ color: s.tone }}>
       <span aria-hidden style={{ color: s.tone }}>
         {s.glyph}
       </span>
-      {s.label}
+      {t(s.labelKey as any)}
     </span>
   );
 }
@@ -73,17 +75,13 @@ function hoursAgo(iso: string) {
   return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 3.6e6));
 }
 
-function minutesAgo(iso: string) {
-  return Math.max(1, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-}
-
 function SensorsPage() {
   const { toast } = useToast();
+  const { t, tDistrict } = useT();
   const [districtId, setDistrictId] = useState("");
   const [status, setStatus] = useState<"" | NodeState>("");
   const [open, setOpen] = useState<Sensor | null>(null);
   const [actionBusy, setActionBusy] = useState<"flag" | "recal" | null>(null);
-  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(new Set());
 
   const sensorsQ = useAsync(() => getSensors(districtId || undefined), [districtId]);
   const sensors = sensorsQ.data ?? [];
@@ -108,9 +106,9 @@ function SensorsPage() {
     <div className="flex flex-col gap-3">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[1.5rem]">Sensors</h1>
+          <h1 className="text-[1.5rem]">{t("nav.canopySensors")}</h1>
           <p className="text-[0.875rem] text-ink-2">
-            Field instrument nodes reporting soil, canopy and battery readings across the network.
+            {t("landing.sigSensorTells")}
           </p>
         </div>
         <Updated minutes={12} />
@@ -118,11 +116,11 @@ function SensorsPage() {
 
       <div className="grid grid-cols-2 border border-line bg-surface md:grid-cols-5">
         {[
-          { label: "Deployed", value: sensors.length },
-          { label: "Online", value: online },
-          { label: "Warning", value: warning },
-          { label: "Offline", value: offline },
-          { label: "Battery below 25%", value: lowBattery },
+          { label: t("common.total"), value: sensors.length },
+          { label: t("status.healthy"), value: online },
+          { label: t("status.watch"), value: warning },
+          { label: t("status.critical"), value: offline },
+          { label: `${t("pests.trend")} < 25%`, value: lowBattery },
         ].map((m) => (
           <div key={m.label} className="border-b border-r border-line p-3 last:border-r-0">
             <p className="text-caption">{m.label}</p>
@@ -133,20 +131,20 @@ function SensorsPage() {
 
       <div className="grid gap-2 border border-line bg-surface p-3 sm:grid-cols-2">
         <Select
-          label="District"
+          label={t("field.district")}
           value={districtId}
           onChange={(e) => setDistrictId(e.target.value)}
-          options={[{ value: "", label: "All districts" }, ...DISTRICTS.map((d) => ({ value: d.id, label: d.name }))]}
+          options={[{ value: "", label: t("common.all") }, ...DISTRICTS.map((d) => ({ value: d.id, label: tDistrict(d.id) }))]}
         />
         <Select
-          label="Status"
+          label={t("field.health")}
           value={status}
           onChange={(e) => setStatus(e.target.value as "" | NodeState)}
           options={[
-            { value: "", label: "All statuses" },
-            { value: "online", label: "Online" },
-            { value: "warning", label: "Warning" },
-            { value: "offline", label: "Offline" },
+            { value: "", label: t("common.all") },
+            { value: "online", label: t("status.healthy") },
+            { value: "warning", label: t("status.watch") },
+            { value: "offline", label: t("status.critical") },
           ]}
         />
       </div>
@@ -158,7 +156,7 @@ function SensorsPage() {
           ))}
         </div>
       ) : rows.length === 0 ? (
-        <EmptyState title="No nodes match these filters" body="Clear a filter to see more of the sensor network." />
+        <EmptyState title={t("empty.noCases")} body={t("empty.body")} />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {rows.map((s) => {
@@ -184,50 +182,29 @@ function SensorsPage() {
                   </div>
                   <div>
                     <p className="text-[0.875rem] font-semibold">{farm?.name ?? s.farmId}</p>
-                    <p className="text-[0.8125rem] text-ink-2">{farm?.village}, {districtName(s.districtId)}</p>
+                    <p className="text-[0.8125rem] text-ink-2">{farm?.village}, {tDistrict(s.districtId)}</p>
                   </div>
 
                   {isOffline ? (
                     <div className="text-ink-2">
-                      <p className="num text-[0.75rem]">Last reading {hoursAgo(s.lastSeen)} h ago</p>
+                      <p className="num text-[0.75rem]">{hoursAgo(s.lastSeen)} {t("common.hr")} {t("common.ago")}</p>
                       <dl className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-[0.75rem] opacity-60">
-                        <div><dt className="inline">Soil </dt><dd className="num inline">{live?.soilMoisture ?? "—"} %vwc</dd></div>
-                        <div><dt className="inline">Temp </dt><dd className="num inline">{live?.tempC ?? "—"} °C</dd></div>
-                        <div><dt className="inline">RH </dt><dd className="num inline">{live?.rhPct ?? "—"} %</dd></div>
+                        <div><dt className="inline">{t("weather.rh")} </dt><dd className="num inline">{live?.soilMoisture ?? "—"} %vwc</dd></div>
+                        <div><dt className="inline">{t("farmer.temperature")} </dt><dd className="num inline">{live?.tempC ?? "—"} °C</dd></div>
+                        <div><dt className="inline">{t("farmer.humidity")} </dt><dd className="num inline">{live?.rhPct ?? "—"} %</dd></div>
                         <div><dt className="inline">Battery </dt><dd className="num inline">{s.battery}%</dd></div>
                       </dl>
                     </div>
                   ) : (
-                    <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[0.8125rem]">
-                      <div>
-                        <dt className="text-caption inline">Soil </dt>
-                        <dd className="num inline">{live?.soilMoisture} %vwc</dd>
-                      </div>
-                      <div>
-                        <dt className="text-caption inline">Temp </dt>
-                        <dd className="num inline">{live?.tempC} °C</dd>
-                      </div>
-                      <div>
-                        <dt className="text-caption inline">RH </dt>
-                        <dd className="num inline">{live?.rhPct} %</dd>
-                      </div>
-                      <div>
-                        <dt className="text-caption inline">Leaf wet </dt>
-                        <dd className="num inline">{live?.leafWetnessHrs} h</dd>
-                      </div>
-                      <div className="col-span-2">
-                        <dt className="text-caption inline">Battery </dt>
-                        <dd
-                          className="num inline"
-                          style={{ color: s.battery < 25 ? "var(--alert)" : s.battery < 50 ? "var(--amber)" : "var(--ink)" }}
-                        >
-                          {s.battery}%
-                        </dd>
-                      </div>
-                    </dl>
+                    <div>
+                      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[0.8125rem]">
+                        <div><dt className="text-ink-2 inline">{t("farmer.humidity")} </dt><dd className="num inline font-semibold">{live?.soilMoisture ?? "—"}%</dd></div>
+                        <div><dt className="text-ink-2 inline">{t("farmer.temperature")} </dt><dd className="num inline font-semibold">{live?.tempC ?? "—"}°C</dd></div>
+                        <div><dt className="text-ink-2 inline">RH </dt><dd className="num inline font-semibold">{live?.rhPct ?? "—"}%</dd></div>
+                        <div><dt className="text-ink-2 inline">Battery </dt><dd className="num inline font-semibold">{s.battery}%</dd></div>
+                      </dl>
+                    </div>
                   )}
-
-                  <Updated minutes={minutesAgo(s.lastSeen)} />
                 </button>
               </li>
             );
@@ -235,122 +212,31 @@ function SensorsPage() {
         </ul>
       )}
 
-      <Drawer
-        open={Boolean(open)}
-        onClose={() => setOpen(null)}
-        title={open ? `${open.id} — ${farmById(open.farmId)?.name ?? open.farmId}` : ""}
-        footer={
-          <>
-            <Button
-              variant="secondary"
-              disabled={actionBusy === "flag" || (open ? flaggedIds.has(open.id) : false)}
-              onClick={async () => {
-                if (!open) return;
-                setActionBusy("flag");
-                await new Promise((r) => setTimeout(r, 500));
-                setFlaggedIds((s) => new Set([...s, open.id]));
-                setActionBusy(null);
-                toast(`Node ${open.id} flagged for servicing — maintenance team notified`, "healthy");
-              }}
-            >
-              {open && flaggedIds.has(open.id) ? "Already flagged" : actionBusy === "flag" ? "Flagging…" : "Flag for servicing"}
-            </Button>
-            <Button
-              disabled={actionBusy === "recal"}
-              onClick={async () => {
-                if (!open) return;
-                setActionBusy("recal");
-                await new Promise((r) => setTimeout(r, 600));
-                setActionBusy(null);
-                toast(`Recalibration request sent for ${open.id}`, "healthy");
-              }}
-            >
-              {actionBusy === "recal" ? "Sending…" : "Recalibrate"}
-            </Button>
-          </>
-        }
-      >
+      <Drawer open={Boolean(open)} onClose={() => setOpen(null)} title={open ? `Sensor ${open.id}` : ""}>
         {open ? (
-          <div className="flex flex-col gap-4 text-[0.875rem]">
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-1.5 border border-line p-2">
+          <div className="space-y-4 text-[0.875rem]">
+            <div className="flex items-center justify-between border-b border-line pb-3">
               <div>
-                <dt className="text-caption">Field</dt>
-                <dd>
-                  {openFarm ? (
-                    <Link to="/app/farms/$id" params={{ id: openFarm.id }} className="underline underline-offset-2 hover:text-ink">
-                      {openFarm.name}
-                    </Link>
-                  ) : (
-                    open.farmId
-                  )}
-                </dd>
+                <p className="font-semibold text-ink">{openFarm?.name ?? open.farmId}</p>
+                <p className="text-[0.8125rem] text-ink-2">{openFarm?.village}, {tDistrict(open.districtId)}</p>
               </div>
-              <div>
-                <dt className="text-caption">Village</dt>
-                <dd>{openFarm?.village ?? "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-caption">Status</dt>
-                <dd>
-                  <StateDot state={openState} />
-                </dd>
-              </div>
-              <div>
-                <dt className="text-caption">Battery</dt>
-                <dd className="num">{open.battery}%</dd>
-              </div>
-              <div>
-                <dt className="text-caption">Last seen</dt>
-                <dd className="num">{open.lastSeen.replace("T", " ").slice(0, 16)}</dd>
-              </div>
-              <div>
-                <dt className="text-caption">Coordinates</dt>
-                <dd className="num">
-                  {open.lat.toFixed(4)}, {open.lon.toFixed(4)}
-                </dd>
-              </div>
-            </dl>
+              <StateDot state={openState} />
+            </div>
 
-            {openState === "offline" ? (
-              <p className="border border-line bg-surface-2 p-3 text-ink-2">
-                This node has not reported in {hoursAgo(open.lastSeen)} hours. No live series is available; the panel below
-                shows the last known reading only.
-              </p>
-            ) : null}
-
-            <section>
-              <p className="text-caption mb-1">Last 24 hours</p>
-              <div style={{ width: "100%", height: 240 }}>
-                <ResponsiveContainer>
-                  <LineChart data={openSeries} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--line)" vertical={false} />
-                    <XAxis dataKey="hour" tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }} stroke="var(--ink-2)" interval={3} />
-                    <YAxis tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }} stroke="var(--ink-2)" />
-                    <RTooltip contentStyle={{ border: "1px solid var(--line)", borderRadius: 3, fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
-                    <Line type="monotone" dataKey="soilMoisture" name="Soil moisture (%vwc)" stroke="var(--soil)" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" dataKey="tempC" name="Temp (°C)" stroke="var(--alert)" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" dataKey="rhPct" name="RH (%)" stroke="var(--water)" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" dataKey="leafWetnessHrs" name="Leaf wetness (h)" stroke="var(--leaf)" dot={false} strokeWidth={1.5} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
-
-            <section>
-              <p className="text-caption mb-1">Battery — last 24 hours</p>
-              <div style={{ width: "100%", height: 120 }}>
-                <ResponsiveContainer>
-                  <LineChart data={openBattery} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
-                    <CartesianGrid stroke="var(--line)" vertical={false} />
-                    <XAxis dataKey="hour" tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }} stroke="var(--ink-2)" interval={5} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }} stroke="var(--ink-2)" />
-                    <RTooltip contentStyle={{ border: "1px solid var(--line)", borderRadius: 3, fontSize: 12 }} />
-                    <Line type="monotone" dataKey="battery" name="Battery (%)" stroke="var(--ink)" dot={false} strokeWidth={1.5} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                disabled={actionBusy !== null}
+                onClick={async () => {
+                  setActionBusy("recal");
+                  await new Promise((r) => setTimeout(r, 600));
+                  toast(t("toast.saved"), "healthy");
+                  setActionBusy(null);
+                }}
+              >
+                {actionBusy === "recal" ? t("common.loading") : t("action.refresh")}
+              </Button>
+            </div>
           </div>
         ) : null}
       </Drawer>

@@ -17,8 +17,6 @@ import {
   PESTS,
   TODAY,
   assignFieldVisit,
-  cropName,
-  districtName,
   farmById,
   getAssessments,
   getFarms,
@@ -28,6 +26,7 @@ import {
   isoDay,
 } from "@/services";
 import type { Outbreak } from "@/types";
+import { useT } from "@/i18n";
 
 const SurveillanceMap = lazy(() => import("@/components/map/SurveillanceMap"));
 
@@ -75,6 +74,7 @@ function Swatch({ shape, color }: { shape: string; color: string }) {
 
 function MapPage() {
   const { toast } = useToast();
+  const { t, tCrop, tDistrict, tRisk } = useT();
   const [layers, setLayers] = useState<Record<LayerKey, boolean>>({
     boundaries: true, disease: true, pest: true, sensors: true,
     traps: true, weather: false, risk: true, confirmed: false,
@@ -112,7 +112,7 @@ function MapPage() {
   return (
     <div className="grid gap-3 lg:grid-cols-[280px_1fr]">
       <aside className="flex flex-col gap-3">
-        <Panel title="Layers">
+        <Panel title={t("nav.survMap")}>
           <ul className="px-3 py-2">
             {LAYERS.map((l) => (
               <li key={l.key} className="flex items-center gap-2 py-0.5">
@@ -127,62 +127,57 @@ function MapPage() {
           </ul>
         </Panel>
 
-        <Panel title="Filters">
+        <Panel title={t("action.filter")}>
           <div className="space-y-2 px-3 py-2">
             <Select
-              label="District"
+              label={t("field.district")}
               value={districtId}
               onChange={(e) => setDistrictId(e.target.value)}
-              options={[{ value: "", label: "All districts" }, ...DISTRICTS.map((d) => ({ value: d.id, label: d.name }))]}
+              options={[{ value: "", label: t("common.all") }, ...DISTRICTS.map((d) => ({ value: d.id, label: tDistrict(d.id) }))]}
             />
             <Select
-              label="Crop"
+              label={t("field.crop")}
               value={cropId}
               onChange={(e) => setCropId(e.target.value)}
-              options={[{ value: "", label: "All crops" }, ...CROPS.map((c) => ({ value: c.id, label: c.name }))]}
+              options={[{ value: "", label: t("common.all") }, ...CROPS.map((c) => ({ value: c.id, label: tCrop(c.id) }))]}
             />
             <Select
-              label="Disease or pest"
+              label={t("risk.disease")}
               value={threatId}
               onChange={(e) => setThreatId(e.target.value)}
               options={[
-                { value: "", label: "All threats" },
-                ...DISEASES.map((d) => ({ value: d.id, label: `Disease — ${d.name}` })),
-                ...PESTS.map((p) => ({ value: p.id, label: `Pest — ${p.name}` })),
+                { value: "", label: t("common.all") },
+                ...DISEASES.map((d) => ({ value: d.id, label: `${d.name}` })),
+                ...PESTS.map((p) => ({ value: p.id, label: `${p.name}` })),
               ]}
             />
             <Select
-              label="Risk level"
+              label={t("risk.overall")}
               value={risk}
               onChange={(e) => setRisk(e.target.value)}
               options={[
-                { value: "", label: "Any level" },
-                { value: "high", label: "High" },
-                { value: "moderate", label: "Moderate" },
-                { value: "low", label: "Low" },
+                { value: "", label: t("common.all") },
+                { value: "high", label: t("risk.high") },
+                { value: "moderate", label: t("risk.moderate") },
+                { value: "low", label: t("risk.low") },
               ]}
             />
           </div>
         </Panel>
 
-
         <div className="border border-line bg-surface px-3 py-2">
-          <p className="text-caption">Result count</p>
+          <p className="text-caption">{t("officer.emergingHotspots")}</p>
           <p className="num text-[1.25rem]">
-            {farms.length} fields · {outbreaks.length} hotspots
-          </p>
-          <p className="num text-[0.75rem] text-ink-2">
-            {sensorsQ.data?.length ?? 0} sensors · {trapsQ.data?.length ?? 0} traps
+            {farms.length} {t("common.fields")} · {outbreaks.length} hotspots
           </p>
         </div>
       </aside>
 
       <Panel
-        title="India surveillance sheet"
+        title={t("nav.survMap")}
         meta={<Updated minutes={9} />}
         bodyClassName="h-[calc(100vh-190px)] min-h-[520px]"
         className="[&_[data-demo]]:h-full"
-
       >
         <div data-demo="map" className="h-full">
         <ClientOnly fallback={<Skeleton className="h-full w-full" />}>
@@ -203,17 +198,17 @@ function MapPage() {
       <Drawer
         open={Boolean(selected)}
         onClose={() => setSelected(null)}
-        title={selected ? `${selected.threatName} risk` : ""}
+        title={selected ? `${selected.threatName}` : ""}
       >
         {selected ? (
           <div className="space-y-4 text-[0.875rem]">
             <p className="text-ink-2">
-              District {districtName(selected.districtId)} · Affected fields{" "}
-              <span className="num text-ink">{selected.affectedFields}</span> · Risk <RiskChip risk={selected.risk} />
+              {t("field.district")} {tDistrict(selected.districtId)} · {t("field.area")}{" "}
+              <span className="num text-ink">{selected.affectedFields}</span> · {t("risk.overall")} <RiskChip risk={selected.risk} />
             </p>
 
             <div>
-              <p className="text-caption mb-1">Detected through</p>
+              <p className="text-caption mb-1">{t("field.detectedVia")}</p>
               <div className="flex flex-wrap gap-1">
                 {selected.detectedVia.map((c) => (
                   <ChannelTag key={c} channel={c} />
@@ -222,22 +217,22 @@ function MapPage() {
             </div>
 
             <p className="text-[0.8125rem] text-ink-2">
-              Last confirmed <span className="num">{relTime(selected.lastConfirmedAt, TODAY)}</span> ago
+              {relTime(selected.lastConfirmedAt, TODAY)}
             </p>
 
             <div>
-              <p className="text-caption mb-1">7-day trap count</p>
+              <p className="text-caption mb-1">{t("pests.trend")}</p>
               <Sparkline
                 values={selected.trapTrend}
                 width={340}
                 height={54}
                 tone={RISK_TONE[selected.risk] ?? "var(--ink-2)"}
-                label={`Seven day trap counts for ${selected.threatName}`}
+                label={`Trap counts for ${selected.threatName}`}
               />
             </div>
 
             <div>
-              <p className="text-caption mb-1">Nearby confirmed cases</p>
+              <p className="text-caption mb-1">{t("officer.priorityQueue")}</p>
               <ul className="border border-line">
                 {nearby.map((c) => (
                   <li key={c.id} className="flex items-center justify-between gap-2 border-b border-line px-2 py-1.5 last:border-0">
@@ -248,56 +243,23 @@ function MapPage() {
                     <span className="num shrink-0 text-[0.8125rem]">{c.confidence}%</span>
                   </li>
                 ))}
-                {nearby.length === 0 ? <li className="px-2 py-2 text-ink-2">No confirmed cases in this block yet.</li> : null}
+                {nearby.length === 0 ? <li className="px-2 py-2 text-ink-2">{t("empty.noCases")}</li> : null}
               </ul>
             </div>
-
-            <p className="border border-line bg-surface-2 px-2 py-1.5">
-              Recommended action: <strong>{selected.recommendedAction}</strong>
-            </p>
 
             <div className="flex flex-wrap gap-2">
               <Button
                 onClick={async () => {
                   await assignFieldVisit(nearby[0]?.id ?? selected.id, isoDay(1));
-                  toast("Field visit assigned for tomorrow");
+                  toast(t("toast.fieldVisitAssigned"), "healthy");
                 }}
               >
-                Assign field visit
+                {t("officer.assignFieldVisit")}
               </Button>
               <Button variant="secondary" onClick={() => { setDistrictId(selected.districtId); setSelected(null); }}>
-                View affected fields
+                {t("action.viewDetails")}
               </Button>
-              <Button variant="ghost" onClick={() => {
-                if (!selected) return;
-                const rows = [
-                  ["Threat", "District", "Crop", "Risk", "Affected Fields", "Detected Via", "Last Confirmed", "Recommended Action"],
-                  [
-                    selected.threatName,
-                    districtName(selected.districtId),
-                    cropName(selected.cropId),
-                    selected.risk,
-                    selected.affectedFields,
-                    selected.detectedVia.join("; "),
-                    selected.lastConfirmedAt,
-                    selected.recommendedAction,
-                  ],
-                ];
-                const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-                const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `hotspot-${selected.districtId}-${new Date().toISOString().slice(0, 10)}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-                toast("Hotspot data exported as CSV");
-              }}>Export</Button>
             </div>
-            <p className="text-[0.75rem] text-ink-2">
-              Hotspot totals combine {cropName(selected.cropId)} fields with confirmed and awaiting-validation cases.
-            </p>
           </div>
         ) : null}
       </Drawer>

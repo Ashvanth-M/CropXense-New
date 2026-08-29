@@ -10,8 +10,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useAuth } from "@/auth/AuthContext";
-import { DEMO_USERS, ROLE_REDIRECT, ROLE_LABELS, type UserRole } from "@/auth/roles";
+import { DEMO_USERS, ROLE_REDIRECT, type UserRole } from "@/auth/roles";
 import { Sprout, Shield, FlaskConical, ArrowRight, Sparkles } from "lucide-react";
+import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/_auth/login")({
   head: () => ({
@@ -26,6 +27,7 @@ export const Route = createFileRoute("/_auth/login")({
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { t, tRole } = useT();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,7 +47,7 @@ function LoginPage() {
       const redirect = ROLE_REDIRECT[result.user.role] ?? "/app";
       void navigate({ to: redirect });
     } else {
-      setError(result.error ?? "Unable to sign in. Please check your credentials.");
+      setError(result.error ?? t("auth.loginError"));
     }
   }
 
@@ -65,20 +67,20 @@ function LoginPage() {
 
   return (
     <div>
-      <span className="text-caption text-forest">CropXense Surveillance Platform</span>
-      <h1 className="mt-1 font-expanded text-[1.75rem]">Sign in to CropXense</h1>
+      <span className="text-caption text-forest">{t("auth.platform")}</span>
+      <h1 className="mt-1 font-expanded text-[1.75rem]">{t("auth.signInTitle")}</h1>
       <p className="mt-1 text-[0.875rem] text-ink-2">
-        Access parcel surveillance, field operations, and scientific validation.
+        {t("auth.signInSubtitle")}
       </p>
 
       {/* 1-Click Demo Accounts for SIH Evaluators */}
       <div className="mt-6 rounded-[var(--r)] border border-amber/40 bg-amber/5 p-4">
         <div className="flex items-center gap-1.5 text-[0.8125rem] font-bold text-amber">
           <Sparkles className="size-4" />
-          <span>Try CropXense Demo (1-Click Login)</span>
+          <span>{t("auth.demoTitle")}</span>
         </div>
         <p className="mt-0.5 text-[0.75rem] text-ink-2">
-          Select an authenticated role for instant demonstration:
+          {t("auth.demoSubtitle")}
         </p>
 
         <div className="mt-3 grid gap-2">
@@ -103,7 +105,7 @@ function LoginPage() {
                     <Icon className="size-4" />
                   </span>
                   <div>
-                    <span className="block text-[0.8125rem] font-bold text-ink">{ROLE_LABELS[demo.role]}</span>
+                    <span className="block text-[0.8125rem] font-bold text-ink">{tRole(demo.role)}</span>
                     <span className="block text-[0.6875rem] text-ink-2">{demo.name} · {demo.district}</span>
                   </div>
                 </div>
@@ -119,7 +121,7 @@ function LoginPage() {
           <div className="w-full border-t border-line" />
         </div>
         <span className="relative bg-paper px-3 text-[0.75rem] uppercase tracking-wider text-ink-2 font-semibold">
-          Or sign in with email
+          {t("auth.orEmailLogin")}
         </span>
       </div>
 
@@ -132,7 +134,7 @@ function LoginPage() {
 
         <div>
           <label htmlFor="login-email" className="block text-[0.8125rem] font-semibold text-ink">
-            Email or Mobile Number
+            {t("auth.emailLabel")}
           </label>
           <input
             id="login-email"
@@ -148,7 +150,7 @@ function LoginPage() {
 
         <div>
           <label htmlFor="login-password" className="block text-[0.8125rem] font-semibold text-ink">
-            Password
+            {t("auth.passwordLabel")}
           </label>
           <input
             id="login-password"
@@ -170,13 +172,13 @@ function LoginPage() {
               onChange={(e) => setRemember(e.target.checked)}
               className="size-3.5 accent-forest"
             />
-            <span>Remember me</span>
+            <span>{t("auth.rememberMe")}</span>
           </label>
           <Link
             to="/forgot-password"
             className="font-semibold text-forest hover:underline"
           >
-            Forgot password?
+            {t("auth.forgotPassword")}
           </Link>
         </div>
 
@@ -185,14 +187,14 @@ function LoginPage() {
           disabled={loading}
           className="flex min-h-[46px] w-full items-center justify-center border border-forest bg-forest text-[0.9375rem] font-semibold text-surface hover:bg-[#0e2b20] disabled:opacity-60"
         >
-          {loading ? "Signing in…" : "Sign In"}
+          {loading ? t("auth.signingIn") : t("auth.signInBtn")}
         </button>
       </form>
 
       <p className="mt-6 text-center text-[0.8125rem] text-ink-2">
-        Don't have an account yet?{" "}
+        {t("auth.noAccount")}{" "}
         <Link to="/signup" className="font-semibold text-forest hover:underline">
-          Create an account
+          {t("auth.createAccount")}
         </Link>
       </p>
     </div>

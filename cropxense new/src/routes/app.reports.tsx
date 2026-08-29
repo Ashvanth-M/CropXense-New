@@ -1,21 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Select } from "@/components/ui/Field";
-import { Skeleton } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
-import { Panel, Updated, CaseStatusChip, ConfidenceCell } from "@/components/app/bits";
+import { Panel, CaseStatusChip, ConfidenceCell } from "@/components/app/bits";
 import { RankBar } from "@/components/app/Sparkline";
 import { Drawer } from "@/components/ui/Overlay";
 import { useAsync } from "@/hooks/useAsync";
 import {
   CROPS,
   DISTRICTS,
-  STATUS_LABEL,
   assignFieldVisit,
-  cropName,
-  districtName,
   farmById,
   getAssessments,
   getFieldVisits,
@@ -23,12 +18,12 @@ import {
   isoDay,
   subscribe,
   threatName,
-  TODAY,
   validateCase,
 } from "@/services";
 import type { CropHealthAssessment } from "@/types";
 import { cx } from "@/lib/cx";
 import { FileBarChart, CheckCircle2, Download, Printer, Send, Search } from "lucide-react";
+import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/app/reports")({
   head: () => ({
@@ -66,6 +61,7 @@ type ThreatRow = {
 
 function UnifiedReportsAndValidationPage() {
   const { toast } = useToast();
+  const { t, tCrop, tDistrict, tStatus } = useT();
   const [activeTab, setActiveTab] = useState<"reports" | "validations">("reports");
   const [districtId, setDistrictId] = useState("");
   const [cropId, setCropId] = useState("");
@@ -107,7 +103,7 @@ function UnifiedReportsAndValidationPage() {
     const rows = DISTRICTS.map((d) => {
       const list = cases.filter((c) => c.districtId === d.id);
       return {
-        district: d.name,
+        district: tDistrict(d.id),
         cases: list.length,
         confirmed: list.filter((c) =>
           ["expert_confirmed", "field_confirmed", "resolved"].includes(c.status),
@@ -120,7 +116,7 @@ function UnifiedReportsAndValidationPage() {
     });
     const maxArea = Math.max(1, ...rows.map((r) => r.area));
     return rows.map((r) => ({ ...r, share: Math.round((r.area / maxArea) * 100) }));
-  }, [cases]);
+  }, [cases, tDistrict]);
 
   const threatRows: ThreatRow[] = useMemo(() => {
     const map = new Map<string, CropHealthAssessment[]>();
@@ -135,14 +131,14 @@ function UnifiedReportsAndValidationPage() {
       const severe = list.filter((c) => c.severity >= 4).length;
       result.push({
         threat: threatName(tId!),
-        crop: cropName(crId!),
+        crop: tCrop(crId!),
         cases: list.length,
         avgConfidence: avgConf,
         severe,
       });
     });
     return result.sort((a, b) => b.cases - a.cases);
-  }, [cases]);
+  }, [cases, tCrop]);
 
   const validationList = useMemo(() => {
     return cases.filter((c) => {
@@ -167,7 +163,7 @@ function UnifiedReportsAndValidationPage() {
   }, [cases, statusFilter, searchQuery]);
 
   function exportCsv() {
-    const header = ["District", "Cases", "Confirmed", "Pending", "Rejected", "Affected Area (ha)"];
+    const header = [t("field.district"), t("common.cases"), t("caseStatus.expert_confirmed"), t("caseStatus.awaiting_validation"), t("caseStatus.rejected"), t("field.area")];
     const body = districtRows.map((r) => [r.district, r.cases, r.confirmed, r.pending, r.rejected, r.area]);
     const csv = [header, ...body].map((r) => r.join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
@@ -178,7 +174,7 @@ function UnifiedReportsAndValidationPage() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    toast("Surveillance summary exported as CSV");
+    toast(t("toast.saved"));
   }
 
   return (
@@ -187,27 +183,23 @@ function UnifiedReportsAndValidationPage() {
       <div className="border border-line bg-surface p-5 md:p-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
-            <span className="text-caption text-forest">Departmental Operations</span>
+            <span className="text-caption text-forest">{t("nav.reports")}</span>
             <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">
-              Reports & Validations Console
+              {t("nav.reports")}
             </h1>
             <p className="mt-1 text-[0.875rem] text-ink-2">
-              Combined workspace for district surveillance summaries, expert agreement metrics, and validation audit logs.
+              {t("role.officerDesc")}
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="secondary" onClick={exportCsv}>
               <Download className="size-4" />
-              <span>Export CSV</span>
+              <span>{t("action.export")}</span>
             </Button>
             <Button variant="secondary" onClick={() => window.print()}>
               <Printer className="size-4" />
-              <span>Print / Save PDF</span>
-            </Button>
-            <Button onClick={() => toast("Report transmitted to National Department of Agriculture")}>
-              <Send className="size-4" />
-              <span>Send to District Office</span>
+              <span>{t("action.print")}</span>
             </Button>
           </div>
         </div>
@@ -226,7 +218,7 @@ function UnifiedReportsAndValidationPage() {
           )}
         >
           <FileBarChart className="size-4" />
-          <span>Departmental Reports & Metrics</span>
+          <span>{t("nav.reports")}</span>
         </button>
         <button
           type="button"
@@ -239,30 +231,30 @@ function UnifiedReportsAndValidationPage() {
           )}
         >
           <CheckCircle2 className="size-4" />
-          <span>Validation Status & Case Registry ({cases.length})</span>
+          <span>{t("expert.historyTitle")} ({cases.length})</span>
         </button>
       </div>
 
       {/* Filters Toolbar */}
       <div className="grid gap-3 border border-line bg-surface p-4 sm:grid-cols-2 lg:grid-cols-3">
         <Select
-          label="District"
+          label={t("field.district")}
           value={districtId}
           onChange={(e) => setDistrictId(e.target.value)}
-          options={[{ value: "", label: "All districts" }, ...DISTRICTS.map((d) => ({ value: d.id, label: d.name }))]}
+          options={[{ value: "", label: t("common.all") }, ...DISTRICTS.map((d) => ({ value: d.id, label: tDistrict(d.id) }))]}
         />
         <Select
-          label="Crop"
+          label={t("field.crop")}
           value={cropId}
           onChange={(e) => setCropId(e.target.value)}
-          options={[{ value: "", label: "All crops" }, ...CROPS.map((c) => ({ value: c.id, label: c.name }))]}
+          options={[{ value: "", label: t("common.all") }, ...CROPS.map((c) => ({ value: c.id, label: tCrop(c.id) }))]}
         />
         {activeTab === "validations" && (
           <div className="relative flex items-end">
             <Search className="absolute left-3 bottom-3 size-4 text-ink-2" />
             <input
               type="text"
-              placeholder="Search case, farm or disease…"
+              placeholder={t("fields.searchPlaceholder")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full border border-line bg-paper py-2.5 pl-9 pr-3 text-[0.8125rem] text-ink outline-none focus:border-forest"
@@ -277,49 +269,49 @@ function UnifiedReportsAndValidationPage() {
           {/* Summary Stat Cards */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <div className="border border-line bg-surface p-4">
-              <span className="text-caption">Cases Recorded</span>
+              <span className="text-caption">{t("common.cases")}</span>
               <p className="num mt-1 text-[1.5rem] font-bold">{cases.length}</p>
-              <p className="text-[0.75rem] text-ink-2">in selection</p>
+              <p className="text-[0.75rem] text-ink-2">{t("common.total")}</p>
             </div>
             <div className="border border-line bg-surface p-4">
-              <span className="text-caption">Expert Agreement</span>
+              <span className="text-caption">{t("expert.confirmedToday")}</span>
               <p className="num mt-1 text-[1.5rem] font-bold text-forest">{agreement}%</p>
-              <p className="text-[0.75rem] text-ink-2">{reviewed} cases reviewed</p>
+              <p className="text-[0.75rem] text-ink-2">{reviewed} {t("common.cases")}</p>
             </div>
             <div className="border border-line bg-surface p-4">
-              <span className="text-caption">Area Under Watch</span>
+              <span className="text-caption">{t("officer.atRisk")}</span>
               <p className="num mt-1 text-[1.5rem] font-bold text-water">{affectedArea} ha</p>
-              <p className="text-[0.75rem] text-ink-2">sum of case areas</p>
+              <p className="text-[0.75rem] text-ink-2">{t("farmer.totalArea")}</p>
             </div>
             <div className="border border-line bg-surface p-4">
-              <span className="text-caption">Field Visits Completed</span>
+              <span className="text-caption">{t("followup.completed")}</span>
               <p className="num mt-1 text-[1.5rem] font-bold">
                 {completedVisits}/{visits.length}
               </p>
-              <p className="text-[0.75rem] text-ink-2">assigned this season</p>
+              <p className="text-[0.75rem] text-ink-2">{t("officer.assignFieldVisit")}</p>
             </div>
             <div className="border border-line bg-surface p-4">
-              <span className="text-caption">Active Outbreaks</span>
+              <span className="text-caption">{t("officer.activeOutbreaks")}</span>
               <p className="num mt-1 text-[1.5rem] font-bold text-amber">
                 {(outbreaksQ.data ?? []).filter((o) => o.risk === "high").length}
               </p>
-              <p className="text-[0.75rem] text-ink-2">high risk clusters</p>
+              <p className="text-[0.75rem] text-ink-2">{t("risk.high")}</p>
             </div>
           </div>
 
           {/* District Summary Table */}
-          <Panel title="District Summary" meta={`${districtRows.length} districts reporting`}>
+          <Panel title={t("officer.districtRisk")} meta={`${districtRows.length} ${t("field.district")}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-[0.875rem]">
                 <thead>
                   <tr className="border-b border-line bg-surface-2 text-caption text-ink-2">
-                    <th className="p-3.5 font-semibold">District</th>
-                    <th className="p-3.5 num text-right font-semibold">Cases</th>
-                    <th className="p-3.5 num text-right font-semibold">Confirmed</th>
-                    <th className="p-3.5 num text-right font-semibold">Pending Review</th>
-                    <th className="p-3.5 num text-right font-semibold">Rejected</th>
-                    <th className="p-3.5 num text-right font-semibold">Area (ha)</th>
-                    <th className="p-3.5 font-semibold">Relative Load</th>
+                    <th className="p-3.5 font-semibold">{t("field.district")}</th>
+                    <th className="p-3.5 num text-right font-semibold">{t("common.cases")}</th>
+                    <th className="p-3.5 num text-right font-semibold">{t("caseStatus.expert_confirmed")}</th>
+                    <th className="p-3.5 num text-right font-semibold">{t("caseStatus.awaiting_validation")}</th>
+                    <th className="p-3.5 num text-right font-semibold">{t("caseStatus.rejected")}</th>
+                    <th className="p-3.5 num text-right font-semibold">{t("field.area")}</th>
+                    <th className="p-3.5 font-semibold">{t("landing.colSignal")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
@@ -340,28 +332,63 @@ function UnifiedReportsAndValidationPage() {
               </table>
             </div>
           </Panel>
+        </div>
+      )}
 
-          {/* Threat Breakdown Table */}
-          <Panel title="Threat Breakdown" meta="cases grouped by pathogen / pest">
+      {/* TAB 2: VALIDATIONS */}
+      {activeTab === "validations" && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { id: "all", label: t("common.all") },
+              { id: "pending", label: t("caseStatus.awaiting_validation") },
+              { id: "confirmed", label: t("caseStatus.expert_confirmed") },
+              { id: "rejected", label: t("caseStatus.rejected") },
+            ].map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setStatusFilter(f.id)}
+                className={cx(
+                  "inline-flex min-h-[36px] items-center rounded-[var(--r)] px-3 text-[0.8125rem] font-semibold transition-colors",
+                  statusFilter === f.id
+                    ? "bg-forest text-surface"
+                    : "border border-line bg-paper text-ink hover:bg-surface-2",
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          <Panel title={t("expert.historyTitle")} meta={`${validationList.length} ${t("common.cases")}`}>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-[0.875rem]">
                 <thead>
                   <tr className="border-b border-line bg-surface-2 text-caption text-ink-2">
-                    <th className="p-3.5 font-semibold">Threat Name</th>
-                    <th className="p-3.5 font-semibold">Primary Crop</th>
-                    <th className="p-3.5 num text-right font-semibold">Cases</th>
-                    <th className="p-3.5 num text-right font-semibold">Avg AI Confidence</th>
-                    <th className="p-3.5 num text-right font-semibold">Severe Cases (≥4)</th>
+                    <th className="p-3.5 font-semibold">{t("field.caseId")}</th>
+                    <th className="p-3.5 font-semibold">{t("field.farm")}</th>
+                    <th className="p-3.5 font-semibold">{t("field.crop")}</th>
+                    <th className="p-3.5 font-semibold">{t("field.suspected")}</th>
+                    <th className="p-3.5 font-semibold">{t("field.confidence")}</th>
+                    <th className="p-3.5 font-semibold">{t("field.health")}</th>
+                    <th className="p-3.5 text-right font-semibold">{t("action.viewCase")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
-                  {threatRows.map((t, i) => (
-                    <tr key={i} className="hover:bg-surface-2">
-                      <td className="p-3.5 font-semibold">{t.threat}</td>
-                      <td className="p-3.5">{t.crop}</td>
-                      <td className="num p-3.5 text-right font-semibold">{t.cases}</td>
-                      <td className="num p-3.5 text-right">{t.avgConfidence}%</td>
-                      <td className="num p-3.5 text-right font-semibold text-alert">{t.severe}</td>
+                  {validationList.map((c) => (
+                    <tr key={c.id} className="hover:bg-surface-2">
+                      <td className="num p-3.5 font-semibold">{c.id}</td>
+                      <td className="p-3.5">{farmById(c.farmId)?.name ?? c.farmId}</td>
+                      <td className="p-3.5">{tCrop(c.cropId)}</td>
+                      <td className="p-3.5 font-semibold">{c.suspected}</td>
+                      <td className="p-3.5"><ConfidenceCell value={c.confidence} /></td>
+                      <td className="p-3.5"><CaseStatusChip status={c.status} /></td>
+                      <td className="p-3.5 text-right">
+                        <Button size="sm" variant="secondary" onClick={() => setSelectedCase(c)}>
+                          {t("action.viewCase")}
+                        </Button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -371,136 +398,58 @@ function UnifiedReportsAndValidationPage() {
         </div>
       )}
 
-      {/* TAB 2: VALIDATION STATUS */}
-      {activeTab === "validations" && (
-        <Panel title="Case Validation Registry" meta={`${validationList.length} records in queue`}>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-[0.875rem]">
-              <thead>
-                <tr className="border-b border-line bg-surface-2 text-caption text-ink-2">
-                  <th className="p-3.5 font-semibold">Case ID</th>
-                  <th className="p-3.5 font-semibold">Farm & Village</th>
-                  <th className="p-3.5 font-semibold">District</th>
-                  <th className="p-3.5 font-semibold">Crop</th>
-                  <th className="p-3.5 font-semibold">Suspected Threat</th>
-                  <th className="p-3.5 font-semibold">Confidence</th>
-                  <th className="p-3.5 font-semibold">Status</th>
-                  <th className="p-3.5 text-right font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {validationList.map((c) => {
-                  const farm = farmById(c.farmId);
-                  return (
-                    <tr key={c.id} className="hover:bg-surface-2">
-                      <td className="num p-3.5 font-semibold">{c.id}</td>
-                      <td className="p-3.5">
-                        <p className="font-semibold text-ink">{farm?.name ?? c.farmId}</p>
-                        <p className="text-[0.75rem] text-ink-2">{farm?.ownerName} · {farm?.village}</p>
-                      </td>
-                      <td className="p-3.5">{districtName(c.districtId)}</td>
-                      <td className="p-3.5">{cropName(c.cropId)}</td>
-                      <td className="p-3.5 font-semibold">{c.suspected}</td>
-                      <td className="p-3.5">
-                        <ConfidenceCell value={c.confidence} />
-                      </td>
-                      <td className="p-3.5">
-                        <CaseStatusChip status={c.status} />
-                      </td>
-                      <td className="p-3.5 text-right">
-                        <Button size="sm" variant="secondary" onClick={() => setSelectedCase(c)}>
-                          Audit & Validate
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      )}
-
-      {/* Validation Detail Drawer */}
+      {/* Case Review Drawer */}
       {selectedCase && (
-        <Drawer open onClose={() => setSelectedCase(null)} title={`Validate Case: ${selectedCase.id}`}>
+        <Drawer
+          open
+          onClose={() => setSelectedCase(null)}
+          title={`${t("field.caseId")}: ${selectedCase.id}`}
+        >
           <div className="space-y-4 text-[0.875rem]">
-            <div className="border border-line bg-paper p-4">
-              <span className="text-caption text-forest">Case Details</span>
-              <h3 className="font-expanded text-[1.25rem] font-bold">{selectedCase.suspected}</h3>
-              <p className="text-[0.8125rem] text-ink-2">
-                Field: {farmById(selectedCase.farmId)?.name} · District: {districtName(selectedCase.districtId)}
-              </p>
-            </div>
+            <dl className="grid grid-cols-2 gap-3 border border-line p-3">
+              <div>
+                <dt className="text-caption">{t("field.crop")}</dt>
+                <dd className="font-semibold">{tCrop(selectedCase.cropId)}</dd>
+              </div>
+              <div>
+                <dt className="text-caption">{t("field.district")}</dt>
+                <dd className="font-semibold">{tDistrict(selectedCase.districtId)}</dd>
+              </div>
+              <div>
+                <dt className="text-caption">{t("field.suspected")}</dt>
+                <dd className="font-semibold text-ink">{selectedCase.suspected}</dd>
+              </div>
+              <div>
+                <dt className="text-caption">{t("field.confidence")}</dt>
+                <dd><ConfidenceCell value={selectedCase.confidence} /></dd>
+              </div>
+            </dl>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Confidence</span>
-                <div className="mt-1"><ConfidenceCell value={selectedCase.confidence} /></div>
-              </div>
-              <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Affected Area</span>
-                <p className="num mt-1 font-bold">{selectedCase.affectedAreaHa} ha</p>
-              </div>
-              <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Status</span>
-                <div className="mt-1"><CaseStatusChip status={selectedCase.status} /></div>
-              </div>
-              <div className="border border-line bg-paper p-3">
-                <span className="text-caption">Crop</span>
-                <p className="mt-1 font-semibold">{cropName(selectedCase.cropId)}</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2 border-t border-line pt-4">
+            <div className="flex flex-wrap gap-2 pt-2">
               <Button
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true);
-                  try {
-                    await validateCase(selectedCase.id, "confirmed", "Pathology confirmed.");
-                    toast("Case confirmed and added to official surveillance registry", "healthy");
-                    setSelectedCase(null);
-                  } finally {
-                    setBusy(false);
-                  }
+                  await validateCase(selectedCase.id, "confirmed", "Confirmed from departmental report review.");
+                  toast(t("toast.saved"), "healthy");
+                  setBusy(false);
+                  setSelectedCase(null);
                 }}
               >
-                Confirm Finding
+                {t("officer.confirmCase")}
               </Button>
-
               <Button
                 variant="secondary"
                 disabled={busy}
                 onClick={async () => {
                   setBusy(true);
-                  try {
-                    await assignFieldVisit(selectedCase.id, isoDay(1));
-                    toast("Field visit scheduled for tomorrow", "healthy");
-                    setSelectedCase(null);
-                  } finally {
-                    setBusy(false);
-                  }
+                  await assignFieldVisit(selectedCase.id, isoDay(1));
+                  toast(t("toast.fieldVisitAssigned"), "healthy");
+                  setBusy(false);
+                  setSelectedCase(null);
                 }}
               >
-                Schedule Field Visit
-              </Button>
-
-              <Button
-                variant="ghost"
-                disabled={busy}
-                onClick={async () => {
-                  setBusy(true);
-                  try {
-                    await validateCase(selectedCase.id, "rejected", "Non-pathogenic abiotic symptoms.");
-                    toast("Case rejected");
-                    setSelectedCase(null);
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                Reject Case
+                {t("officer.assignFieldVisit")}
               </Button>
             </div>
           </div>

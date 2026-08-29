@@ -30,10 +30,11 @@ import type { LucideIcon } from "lucide-react";
 import { LogoMark } from "@/components/Logo";
 import { LANGS, useT } from "@/i18n";
 import { useAuth } from "@/auth/AuthContext";
-import { ROLE_LABELS, type UserRole } from "@/auth/roles";
+import { type UserRole } from "@/auth/roles";
 import { cx } from "@/lib/cx";
 import { UserMenu } from "./UserMenu";
 import { DemoPanel } from "./DemoPanel";
+import type { TranslationKey } from "@/i18n/en";
 
 export interface NavItem {
   to: string;
@@ -70,7 +71,7 @@ export function RoleAppShell({
   children: ReactNode;
 }) {
   const { user, logout } = useAuth();
-  const { lang, cycle, t } = useT();
+  const { lang, cycle, t, tRole, tDistrict } = useT();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -88,7 +89,7 @@ export function RoleAppShell({
   }
 
   const translateLabel = (label: string) => {
-    const keyMap: Record<string, keyof typeof import("@/i18n/en").en> = {
+    const keyMap: Record<string, TranslationKey> = {
       Overview: "nav.overview",
       "My Fields": "nav.fields",
       "Scan Crop": "nav.scan",
@@ -102,6 +103,23 @@ export function RoleAppShell({
       Surveillance: "nav.surveillance",
       Cases: "nav.cases",
       Advisories: "nav.advisories",
+      "Priority Cases": "nav.priorityCases",
+      "Farms & Plots": "nav.farmsPlots",
+      "Crop Health": "nav.cropHealth",
+      "Surveillance Map": "nav.survMap",
+      "Forecast & Risk": "nav.forecastRisk",
+      "Pest Traps": "nav.pestTraps",
+      "Canopy Sensors": "nav.canopySensors",
+      "Reports & Validations": "nav.reports",
+      "Pending Reviews": "nav.pendingReviews",
+      "Validation History": "nav.validationHistory",
+      "Disease Knowledge Base": "nav.diseaseKnowledge",
+      Reviews: "nav.reviews",
+      History: "nav.history",
+      Knowledge: "nav.knowledge",
+      Reports: "nav.reports",
+      Map: "nav.survMap",
+      Health: "nav.cropHealth",
     };
     const key = keyMap[label];
     return key ? t(key) : label;
@@ -115,7 +133,7 @@ export function RoleAppShell({
   const pageTitle = translateLabel(rawPageTitle);
 
   const userInitial = (user?.name || "U")[0]?.toUpperCase();
-  const userDistrict = user?.district || "India";
+  const userDistrict = user?.district ? tDistrict(user.district) : "India";
 
   return (
     <div className="flex min-h-screen bg-paper text-ink">
@@ -132,7 +150,7 @@ export function RoleAppShell({
                 Crop<span className="font-medium text-amber">X</span>ense
               </span>
               <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-forest">
-                {config.appSubtitle}
+                {tRole(config.role)}
               </span>
             </div>
           </Link>
@@ -180,7 +198,7 @@ export function RoleAppShell({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[0.875rem] font-semibold leading-tight">{user?.name || "User"}</p>
                 <p className="truncate text-[0.6875rem] font-medium text-ink-2">
-                  {ROLE_LABELS[config.role]} · {userDistrict}
+                  {tRole(config.role)} · {userDistrict}
                 </p>
               </div>
             </div>
@@ -203,7 +221,7 @@ export function RoleAppShell({
                 className="inline-flex min-h-[36px] items-center gap-1.5 rounded-[var(--r)] border border-alert/30 bg-alert/5 px-2.5 text-[0.75rem] font-semibold text-alert transition-colors hover:bg-alert/15"
               >
                 <LogOut className="size-3.5" aria-hidden />
-                <span>Logout</span>
+                <span>{t("profile.logout")}</span>
               </button>
             </div>
           </div>
@@ -237,144 +255,142 @@ export function RoleAppShell({
 
             {/* Desktop Eyebrow Breadcrumb */}
             <div className="hidden items-baseline gap-2 md:flex">
-              <span className="text-caption text-forest uppercase tracking-wider">{config.eyebrowTitle}</span>
+              <span className="text-caption text-forest uppercase tracking-wider">{tRole(config.role)}</span>
               <span className="text-ink-2">/</span>
-              <h1 className="font-display text-[1.125rem] font-semibold text-ink">{pageTitle}</h1>
+              <span className="text-[0.9375rem] font-semibold text-ink">{pageTitle}</span>
             </div>
           </div>
 
-          {/* Right Action Tools */}
-          <div className="flex items-center gap-2.5">
-            {config.showDemoPanel && (
-              <div className="hidden sm:block">
-                <DemoPanel />
-              </div>
-            )}
-
-            {config.statusBadge ? (
-              <span className="hidden items-center gap-1.5 rounded-[var(--r)] border border-forest/30 bg-forest/5 px-2.5 py-1 text-[0.75rem] font-semibold text-forest lg:inline-flex">
-                <Sparkles className="size-3 text-forest" />
-                <span>{config.statusBadge}</span>
-              </span>
-            ) : (
-              <span className="num hidden text-[0.75rem] text-ink-2 lg:inline-block">
-                Updated 8 min ago
+          {/* Right Header Actions: Status Badge, Notification, Language, User */}
+          <div className="flex items-center gap-2 md:gap-3">
+            {config.statusBadge && (
+              <span className="hidden items-center gap-1.5 rounded-[var(--r)] border border-forest/20 bg-forest/5 px-2.5 py-1 text-[0.75rem] font-semibold text-forest lg:inline-flex">
+                <span className="size-1.5 rounded-full bg-forest animate-pulse" />
+                {config.statusBadge}
               </span>
             )}
 
-            {/* Notifications */}
             {config.notificationPath && (
               <Link
                 to={config.notificationPath}
-                aria-label="Notifications"
+                aria-label={`${config.notificationCount ?? 0} unread alerts`}
                 className="relative inline-flex size-10 items-center justify-center rounded-[var(--r)] border border-line bg-surface text-ink transition-colors hover:bg-surface-2"
               >
-                <Bell className="size-4" aria-hidden />
-                {typeof config.notificationCount === "number" && config.notificationCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-alert text-[0.625rem] font-bold text-surface">
+                <Bell className="size-4" />
+                {(config.notificationCount ?? 0) > 0 && (
+                  <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-amber text-[0.625rem] font-bold text-surface">
                     {config.notificationCount}
                   </span>
                 )}
               </Link>
             )}
 
-            {/* Language Cycler (Desktop) */}
+            {/* Desktop Language Switcher Button */}
             <button
               type="button"
               onClick={cycle}
-              aria-label={`${t("nav.language")}: ${currentLang?.label}`}
+              aria-label={`${t("nav.language")}: ${currentLang?.label}. Switch to ${nextLang?.label}`}
               className="hidden min-h-[40px] items-center gap-1.5 rounded-[var(--r)] border border-line bg-surface px-3 text-[0.8125rem] font-semibold text-ink transition-colors hover:bg-surface-2 sm:inline-flex"
             >
               <Languages className="size-4 text-ink-2" aria-hidden />
               <span>{currentLang?.label}</span>
             </button>
 
-            {/* Reusable Desktop User Menu */}
-            <div className="hidden md:block">
-              <UserMenu />
-            </div>
-
-            {/* Quick Logout Button on Mobile Viewports */}
-            <button
-              type="button"
-              onClick={handleLogout}
-              aria-label="Sign out"
-              className="inline-flex size-10 items-center justify-center rounded-[var(--r)] border border-line text-alert hover:bg-alert/10 md:hidden"
-            >
-              <LogOut className="size-4" aria-hidden />
-            </button>
+            <UserMenu />
           </div>
         </header>
 
-        {/* Main Content Viewport */}
-        <main className="flex-1 overflow-y-auto px-4 py-5 md:px-8 md:py-6 pb-20 md:pb-8">
-          <div className="mx-auto w-full max-w-[1440px]">
-            {children}
-          </div>
+        {/* SIH Evaluation Interactive Assistant Trigger */}
+        {config.showDemoPanel && <DemoPanel />}
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-x-hidden p-4 md:p-6 pb-20 md:pb-6">
+          <div className="mx-auto max-w-[1440px]">{children}</div>
         </main>
       </div>
 
       {/* =========================================================================
-          MOBILE SLIDE-OVER DRAWER (Shared Across All Roles)
+          MOBILE NAVIGATION DRAWER (Slide-over on small screens)
       ========================================================================= */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex md:hidden" role="dialog" aria-modal="true">
+        <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true">
+          {/* Backdrop */}
           <div
             className="fixed inset-0 bg-ink/40 backdrop-blur-xs transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <div className="relative flex w-full max-w-[280px] flex-col border-r border-line bg-surface p-4 shadow-overlay">
-            <div className="flex items-center justify-between border-b border-line pb-3">
-              <div className="flex items-center gap-2">
-                <LogoMark size={22} />
+
+          {/* Drawer Container */}
+          <div className="fixed inset-y-0 left-0 flex w-[280px] flex-col border-r border-line bg-surface shadow-panel">
+            {/* Drawer Header */}
+            <div className="flex min-h-[60px] items-center justify-between border-b border-line px-4">
+              <Link to={config.homePath} className="flex items-center gap-2">
+                <LogoMark size={24} />
                 <div>
-                  <span className="font-display text-[1.0625rem] font-semibold leading-none">
+                  <span className="font-display text-[1.125rem] font-semibold">
                     Crop<span className="text-amber">X</span>ense
                   </span>
-                  <span className="block text-[0.625rem] font-semibold uppercase text-forest">
-                    {config.appSubtitle}
+                  <span className="block text-[0.6875rem] font-semibold uppercase tracking-wider text-forest">
+                    {tRole(config.role)}
                   </span>
                 </div>
-              </div>
+              </Link>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                aria-label="Close navigation"
+                aria-label="Close menu"
                 className="inline-flex size-9 items-center justify-center rounded-[var(--r)] border border-line text-ink"
               >
                 <X className="size-4" />
               </button>
             </div>
 
-            <nav className="mt-4 flex-1 space-y-1 overflow-y-auto">
+            {/* Mobile Nav Links */}
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3">
               {config.navItems.map((item) => {
                 const active = item.exact ? pathname === item.to : pathname.startsWith(item.to);
                 const Icon = item.icon;
+                const localizedLabel = translateLabel(item.label);
                 return (
                   <Link
                     key={item.to}
                     to={item.to}
                     onClick={() => setMobileMenuOpen(false)}
                     className={cx(
-                      "flex min-h-[46px] items-center gap-3 rounded-[var(--r)] px-3 text-[0.9375rem] font-semibold transition-colors",
-                      active ? "bg-forest text-surface" : "text-ink hover:bg-surface-2",
+                      "flex min-h-[44px] items-center gap-3 rounded-[var(--r)] px-3 text-[0.875rem] font-semibold transition-colors",
+                      active
+                        ? "bg-forest text-surface"
+                        : "text-ink-2 hover:bg-surface-2 hover:text-ink",
                     )}
                   >
-                    <Icon className={cx("size-4.5", active ? "text-amber" : "text-ink-2")} aria-hidden />
-                    <span>{translateLabel(item.label)}</span>
+                    <Icon className={cx("size-4", active ? "text-amber" : "text-ink-2")} />
+                    <span>{localizedLabel}</span>
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="mt-auto border-t border-line pt-3">
+            {/* Mobile Drawer Footer */}
+            <div className="border-t border-line p-3 space-y-2">
+              <button
+                type="button"
+                onClick={cycle}
+                className="flex min-h-[40px] w-full items-center justify-between rounded-[var(--r)] border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink"
+              >
+                <span className="flex items-center gap-2">
+                  <Languages className="size-4 text-ink-2" />
+                  <span>{t("nav.language")}</span>
+                </span>
+                <span className="text-forest">{currentLang?.label}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex w-full min-h-[46px] items-center justify-center gap-2 rounded-[var(--r)] border border-alert/30 bg-alert/5 text-[0.875rem] font-semibold text-alert"
+                className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-[var(--r)] border border-alert/30 bg-alert/5 text-[0.8125rem] font-semibold text-alert"
               >
                 <LogOut className="size-4" />
-                <span>Sign out</span>
+                <span>{t("profile.logout")}</span>
               </button>
             </div>
           </div>
@@ -382,28 +398,28 @@ export function RoleAppShell({
       )}
 
       {/* =========================================================================
-          MOBILE BOTTOM BAR (If Defined)
+          MOBILE BOTTOM TAB BAR (Bottom Navigation for Quick Access on Mobile)
       ========================================================================= */}
-      {config.mobileTabs && config.mobileTabs.length > 0 && (
+      {config.mobileTabs && (
         <nav
-          aria-label="Mobile quick actions"
-          className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface md:hidden"
+          aria-label="Mobile navigation tabs"
+          className="fixed inset-x-0 bottom-0 z-40 flex min-h-[56px] items-center justify-around border-t border-line bg-surface md:hidden"
         >
           {config.mobileTabs.map((tab) => {
             const active = tab.exact ? pathname === tab.to : pathname.startsWith(tab.to);
             const Icon = tab.icon;
+            const localizedLabel = translateLabel(tab.label);
             return (
               <Link
                 key={tab.to}
                 to={tab.to}
                 className={cx(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-1 py-1.5 text-[0.6875rem] font-semibold transition-colors",
-                  active ? "text-forest" : "text-ink-2 hover:text-ink",
+                  "flex flex-1 flex-col items-center justify-center py-1.5 text-[0.6875rem] font-medium transition-colors",
+                  active ? "text-forest font-bold" : "text-ink-2",
                 )}
-                aria-current={active ? "page" : undefined}
               >
-                <Icon className="size-5" aria-hidden />
-                <span>{tab.label}</span>
+                <Icon className={cx("size-5", active ? "text-forest" : "text-ink-2")} />
+                <span className="mt-0.5 max-w-[60px] truncate">{localizedLabel}</span>
               </Link>
             );
           })}

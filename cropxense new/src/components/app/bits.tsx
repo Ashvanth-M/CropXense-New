@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Camera, CloudRain, Cpu, History, Bug } from "lucide-react";
 import type { CaseStatus, RiskLevel, SignalChannel } from "@/types";
 import { cx } from "@/lib/cx";
+import { useT } from "@/i18n";
 
 /** Shared chrome for every dashboard panel: hairline box, caption header. */
 export function Panel({
@@ -36,17 +37,10 @@ const CHANNEL_ICON: Record<SignalChannel, typeof Camera> = {
   history: History,
 };
 
-const CHANNEL_LABEL: Record<SignalChannel, string> = {
-  image: "Image",
-  sensor: "Sensor",
-  trap: "Pest trap",
-  weather: "Weather",
-  history: "History",
-};
-
 export function ChannelIcons({ channels }: { channels: SignalChannel[] }) {
+  const { tChannel } = useT();
   return (
-    <span className="inline-flex items-center gap-1" aria-label={`Detected via ${channels.map((c) => CHANNEL_LABEL[c]).join(", ")}`}>
+    <span className="inline-flex items-center gap-1" aria-label={`Detected via ${channels.map((c) => tChannel(c)).join(", ")}`}>
       {channels.map((c) => {
         const Icon = CHANNEL_ICON[c];
         return <Icon key={c} className="size-[13px] text-ink-2" aria-hidden />;
@@ -56,48 +50,51 @@ export function ChannelIcons({ channels }: { channels: SignalChannel[] }) {
 }
 
 export function ChannelTag({ channel }: { channel: SignalChannel }) {
+  const { tChannel } = useT();
   const Icon = CHANNEL_ICON[channel];
   return (
     <span className="inline-flex items-center gap-1 border border-line px-1.5 py-0.5 text-[0.75rem] text-ink-2">
       <Icon className="size-[13px]" aria-hidden />
-      {CHANNEL_LABEL[channel]}
+      {tChannel(channel)}
     </span>
   );
 }
 
 /** Case status pill — shape + colour + text, never colour alone. */
 export function CaseStatusChip({ status }: { status: CaseStatus }) {
-  const map: Record<CaseStatus, { label: string; tone: string; glyph: string }> = {
-    detected: { label: "Detected", tone: "var(--ink-2)", glyph: "○" },
-    awaiting_validation: { label: "Awaiting validation", tone: "var(--amber)", glyph: "◧" },
-    expert_confirmed: { label: "Expert confirmed", tone: "var(--leaf)", glyph: "✓" },
-    field_confirmed: { label: "Field confirmed", tone: "var(--forest)", glyph: "✓✓" },
-    rejected: { label: "Rejected", tone: "var(--ink-2)", glyph: "×" },
-    resolved: { label: "Resolved", tone: "var(--water)", glyph: "◼" },
+  const { tStatus } = useT();
+  const map: Record<CaseStatus, { tone: string; glyph: string }> = {
+    detected: { tone: "var(--ink-2)", glyph: "○" },
+    awaiting_validation: { tone: "var(--amber)", glyph: "◧" },
+    expert_confirmed: { tone: "var(--leaf)", glyph: "✓" },
+    field_confirmed: { tone: "var(--forest)", glyph: "✓✓" },
+    rejected: { tone: "var(--ink-2)", glyph: "×" },
+    resolved: { tone: "var(--water)", glyph: "◼" },
   };
-  const s = map[status];
+  const s = map[status] ?? { tone: "var(--ink-2)", glyph: "○" };
   return (
     <span
       className="inline-flex items-center gap-1 whitespace-nowrap border px-1.5 py-0.5 text-[0.75rem] font-semibold"
       style={{ color: s.tone, borderColor: s.tone }}
     >
       <span aria-hidden>{s.glyph}</span>
-      {s.label}
+      {tStatus(status)}
     </span>
   );
 }
 
 export function RiskChip({ risk }: { risk: RiskLevel }) {
-  const map: Record<RiskLevel, { label: string; tone: string; glyph: string }> = {
-    high: { label: "High", tone: "var(--alert)", glyph: "▲" },
-    moderate: { label: "Moderate", tone: "var(--amber)", glyph: "■" },
-    low: { label: "Low", tone: "var(--leaf)", glyph: "●" },
+  const { tRisk } = useT();
+  const map: Record<RiskLevel, { tone: string; glyph: string }> = {
+    high: { tone: "var(--alert)", glyph: "▲" },
+    moderate: { tone: "var(--amber)", glyph: "■" },
+    low: { tone: "var(--leaf)", glyph: "●" },
   };
-  const s = map[risk];
+  const s = map[risk] ?? { tone: "var(--leaf)", glyph: "●" };
   return (
     <span className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold" style={{ color: s.tone }}>
       <span aria-hidden>{s.glyph}</span>
-      {s.label}
+      {tRisk(risk)}
     </span>
   );
 }
@@ -136,4 +133,3 @@ export function Updated({ minutes }: { minutes: number }) {
         : `${Math.round(minutes / 1440)} days ago`;
   return <span className="num text-[0.75rem] text-ink-2">Updated {label}</span>;
 }
-

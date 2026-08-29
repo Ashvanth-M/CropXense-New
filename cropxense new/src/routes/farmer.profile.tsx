@@ -5,17 +5,10 @@
  * language cycler, and explicit Logout action.
  */
 
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
-  UserRound,
-  MapPin,
-  Sprout,
-  Languages,
   Phone,
   LogOut,
-  FileCheck,
-  Building,
-  HelpCircle,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/Card";
 import { LANGS, useT } from "@/i18n";
@@ -44,7 +37,7 @@ export const Route = createFileRoute("/farmer/profile")({
 
 function FarmerProfilePage() {
   const { user, logout } = useAuth();
-  const { lang, setLang } = useT();
+  const { lang, setLang, t, tDistrict, tRole } = useT();
   const { data: farms, loading } = useAsync(() => getFarmerFarms(user), [user]);
   const primaryFarm = farms?.[0];
 
@@ -59,8 +52,8 @@ function FarmerProfilePage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="border border-line bg-surface p-5 md:p-6">
-        <span className="text-caption text-forest">Account & Preferences</span>
-        <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">Profile & Settings</h1>
+        <span className="text-caption text-forest">{t("nav.account")}</span>
+        <h1 className="mt-1 font-expanded text-[1.5rem] md:text-[1.875rem]">{t("profile.title")}</h1>
       </div>
 
       {/* Main 2-Column Profile Grid */}
@@ -70,7 +63,7 @@ function FarmerProfilePage() {
           {/* Identity Card */}
           <div className="border border-line bg-surface p-5">
             <h2 className="font-display text-[1.125rem] font-semibold border-b border-line pb-3">
-              Farmer Identity & Land Records
+              {t("profile.farmInfo")}
             </h2>
 
             {loading ? (
@@ -78,33 +71,33 @@ function FarmerProfilePage() {
             ) : (
               <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 text-[0.875rem]">
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Full Name</dt>
+                  <dt className="text-caption">{t("auth.fullName")}</dt>
                   <dd className="mt-1 font-semibold text-ink">{user?.name || primaryFarm?.ownerName || "Ramesh Kumar"}</dd>
                 </div>
 
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Role Type</dt>
-                  <dd className="mt-1 font-semibold uppercase text-forest">Registered Farmer</dd>
+                  <dt className="text-caption">{t("auth.registeringAs")}</dt>
+                  <dd className="mt-1 font-semibold uppercase text-forest">{tRole("farmer")}</dd>
                 </div>
 
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Village & District</dt>
-                  <dd className="mt-1 text-ink">{primaryFarm?.village || "Akola"}, Maharashtra</dd>
+                  <dt className="text-caption">{t("field.village")} & {t("field.district")}</dt>
+                  <dd className="mt-1 text-ink">{primaryFarm?.village || tDistrict("akola")}, Maharashtra</dd>
                 </div>
 
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Contact Mobile</dt>
+                  <dt className="text-caption">{t("auth.mobileNumber")}</dt>
                   <dd className="num mt-1 text-ink">{user?.mobile || "+91 98765 43210"}</dd>
                 </div>
 
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Registered Plots</dt>
-                  <dd className="num mt-1 font-bold text-ink">{farms?.length || 3} Parcels</dd>
+                  <dt className="text-caption">{t("profile.registeredFields")}</dt>
+                  <dd className="num mt-1 font-bold text-ink">{farms?.length || 3} {t("common.fields")}</dd>
                 </div>
 
                 <div className="border border-line bg-paper p-3">
-                  <dt className="text-caption">Total Land Area</dt>
-                  <dd className="num mt-1 font-bold text-ink">{totalArea} Hectares</dd>
+                  <dt className="text-caption">{t("farmer.totalArea")}</dt>
+                  <dd className="num mt-1 font-bold text-ink">{totalArea} {t("common.hectares")}</dd>
                 </div>
               </dl>
             )}
@@ -113,13 +106,10 @@ function FarmerProfilePage() {
           {/* Language Selection */}
           <div className="border border-line bg-surface p-5">
             <h2 className="font-display text-[1.125rem] font-semibold border-b border-line pb-3">
-              Preferred Advisory Language
+              {t("profile.language")}
             </h2>
-            <p className="mt-2 text-[0.8125rem] text-ink-2">
-              Select your preferred language for pest advisories, notifications, and weather warnings.
-            </p>
 
-            <div className="mt-4 grid grid-cols-3 gap-3">
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
               {LANGS.map((item) => {
                 const isSelected = lang === item.code;
                 return (
@@ -142,30 +132,6 @@ function FarmerProfilePage() {
               })}
             </div>
           </div>
-
-          {/* Alert & Notification Subscriptions */}
-          <div className="border border-line bg-surface p-5">
-            <h2 className="font-display text-[1.125rem] font-semibold border-b border-line pb-3">
-              Direct Advisory & Weather Subscriptions
-            </h2>
-            <div className="mt-4 space-y-3 text-[0.8125rem]">
-              {[
-                { title: "Severe Weather & Rain Warning Alerts", desc: "SMS warnings triggered when leaf wetness & RH cross fungal risk threshold.", enabled: true },
-                { title: "Village Pest Trap Surge Notifications", desc: "Alerts when nearby light/pheromone traps cross Economic Thresholds.", enabled: true },
-                { title: "State Extension Scheme & Subsidy Updates", desc: "Bi-weekly updates from Maharashtra Department of Agriculture.", enabled: false },
-              ].map((sub, i) => (
-                <div key={i} className="flex items-center justify-between border border-line bg-paper p-3 rounded-[var(--r)]">
-                  <div>
-                    <p className="font-semibold text-ink">{sub.title}</p>
-                    <p className="text-[0.75rem] text-ink-2 mt-0.5">{sub.desc}</p>
-                  </div>
-                  <span className={`rounded-[var(--r)] px-2 py-0.5 text-[0.6875rem] font-bold ${sub.enabled ? "bg-leaf/15 text-leaf" : "bg-surface-2 text-ink-2"}`}>
-                    {sub.enabled ? "Subscribed" : "Disabled"}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Support, Officer & Explicit Logout */}
@@ -173,22 +139,19 @@ function FarmerProfilePage() {
           {/* Extension Officer Contact */}
           <div className="border border-line bg-surface p-5">
             <h2 className="font-display text-[1.125rem] font-semibold border-b border-line pb-3">
-              Assigned Extension Staff
+              {t("profile.extensionOfficer")}
             </h2>
 
             <div className="mt-4 border border-line bg-paper p-4 text-[0.875rem]">
               <p className="font-semibold text-ink">{DEMO_OFFICER.name}</p>
-              <p className="text-[0.8125rem] text-ink-2">Agriculture Officer · Akola Sub-division</p>
-              <p className="mt-2 text-[0.8125rem] text-ink-2">
-                Available Mon–Sat (09:00–17:00) for field sample confirmations and chemical dosage approval.
-              </p>
+              <p className="text-[0.8125rem] text-ink-2">{tRole("officer")} · {tDistrict("akola")}</p>
 
               <a
                 href={`tel:${DEMO_OFFICER.phone}`}
                 className="mt-3 flex min-h-[40px] items-center justify-center gap-2 border border-forest bg-forest text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20]"
               >
                 <Phone className="size-3.5" />
-                <span>Call Officer ({DEMO_OFFICER.phone})</span>
+                <span>{DEMO_OFFICER.phone}</span>
               </a>
             </div>
           </div>
@@ -196,18 +159,15 @@ function FarmerProfilePage() {
           {/* Prominent Explicit Logout Card */}
           <div className="border border-alert/30 bg-alert/5 p-5">
             <h2 className="font-display text-[1.125rem] font-semibold text-alert">
-              Sign Out of Session
+              {t("profile.logout")}
             </h2>
-            <p className="mt-1 text-[0.8125rem] text-ink-2">
-              End your authenticated farmer session. You will be returned to the public homepage.
-            </p>
             <button
               type="button"
               onClick={handleLogout}
               className="mt-4 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[var(--r)] border border-alert bg-alert text-[0.875rem] font-semibold text-surface hover:bg-alert/90"
             >
               <LogOut className="size-4" />
-              <span>Sign Out of CropXense</span>
+              <span>{t("profile.logout")}</span>
             </button>
           </div>
         </div>

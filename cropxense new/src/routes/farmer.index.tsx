@@ -1,19 +1,12 @@
 /**
  * /farmer/ — Simplified, Farmer-First Overview Command Center.
  *
- * Designed for SIH 2026 jury clarity (understandable in 10 seconds):
+ * Designed for SIH 2026 jury clarity:
  * 1. Top Farm Health Summary (Overall Risk, Fields, Area, Active Alerts)
  * 2. Today's Actions (Top 3 prioritized actions or clean caught-up state)
  * 3. My Fields (Top 3 prioritized parcels + link to full field list)
  * 4. Today's Weather & Risk (Temp, RH%, Rainfall + simple disease risk explanation)
  * 5. Latest Crop Health Alert (Single most important active detection + direct action)
- *
- * Full detailed operations live in their respective dedicated sidebar routes:
- * - /farmer/fields (Full 10-field register & CRUD)
- * - /farmer/scan (AI crop disease scanner)
- * - /farmer/crop-care (Advisories & Follow-up lifecycle)
- * - /farmer/forecast (7-day microclimate risk forecast)
- * - /farmer/pests (ETL pheromone trap surveillance)
  */
 
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -191,13 +184,13 @@ function FarmerOverviewPage() {
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
           <div>
             <span className="text-caption text-forest font-bold uppercase tracking-wider">
-              {t("app.name")} · FIELD HEALTH
+              {t("app.name")} · {t("role.fieldHealth")}
             </span>
             <h1 className="mt-1 font-expanded text-[1.625rem] md:text-[2rem] font-bold leading-tight text-ink">
               {t("farmer.greeting")}, {farmerFirstName}
             </h1>
             <p className="mt-1 text-[0.875rem] text-ink-2 capitalize">
-              {tDistrict(districtId)} District · Farm Health Summary
+              {tDistrict(districtId)} {t("field.district")} · {t("farmer.fieldPulse")}
             </p>
           </div>
 
@@ -231,7 +224,7 @@ function FarmerOverviewPage() {
           <div className="mt-6 grid grid-cols-2 gap-4 border-t border-line pt-5 sm:grid-cols-4">
             {/* OVERALL FARM RISK */}
             <div className="border-r border-line pr-3 last:border-r-0">
-              <span className="text-caption">OVERALL FARM RISK</span>
+              <span className="text-caption">{t("risk.overall")}</span>
               <div className="mt-1.5 flex items-baseline gap-2">
                 <span
                   className={cx(
@@ -248,32 +241,32 @@ function FarmerOverviewPage() {
               </div>
               <p className="text-[0.75rem] text-ink-2 truncate">
                 {openCases.length > 0
-                  ? `${openCases.length} active issue${openCases.length === 1 ? "" : "s"}`
-                  : "Stable conditions"}
+                  ? `${openCases.length} ${t("common.cases")}`
+                  : t("farmer.allHealthy")}
               </p>
             </div>
 
             {/* FIELDS */}
             <div className="border-r border-line pr-3 last:border-r-0">
-              <span className="text-caption">FIELDS</span>
+              <span className="text-caption">{t("nav.fields")}</span>
               <p className="num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold text-ink">
                 {farmList.length}
               </p>
-              <p className="text-[0.75rem] text-ink-2">Registered parcels</p>
+              <p className="text-[0.75rem] text-ink-2">{t("profile.registeredFields")}</p>
             </div>
 
             {/* AREA */}
             <div className="border-r border-line pr-3 last:border-r-0">
-              <span className="text-caption">TOTAL AREA</span>
+              <span className="text-caption">{t("farmer.totalArea")}</span>
               <p className="num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold text-ink">
                 {totalArea} <span className="text-[1rem] font-normal text-ink-2">ha</span>
               </p>
-              <p className="text-[0.75rem] text-ink-2">Cultivated land</p>
+              <p className="text-[0.75rem] text-ink-2">{t("field.areaHectares")}</p>
             </div>
 
             {/* ACTIVE ALERTS */}
             <div>
-              <span className="text-caption">ACTIVE ALERTS</span>
+              <span className="text-caption">{t("farmer.activeAlerts")}</span>
               <p
                 className={cx(
                   "num mt-1.5 font-display text-[1.5rem] md:text-[1.75rem] font-bold",
@@ -283,7 +276,7 @@ function FarmerOverviewPage() {
                 {activeAlertsCount}
               </p>
               <p className="text-[0.75rem] text-ink-2">
-                {activeAlertsCount > 0 ? "Needs farmer review" : "No urgent alerts"}
+                {activeAlertsCount > 0 ? t("farmer.fieldsAtRisk") : t("farmer.noAlerts")}
               </p>
             </div>
           </div>
@@ -299,12 +292,12 @@ function FarmerOverviewPage() {
             <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-forest/10 text-forest mb-4">
               <Sprout className="size-8" />
             </div>
-            <span className="text-caption text-forest font-bold uppercase">Welcome to CropXense</span>
+            <span className="text-caption text-forest font-bold uppercase">{t("app.name")}</span>
             <h2 className="mt-1 font-expanded text-[1.5rem] font-bold text-ink">
-              You haven't registered any fields yet
+              {t("empty.noFields")}
             </h2>
             <p className="mt-2 text-[0.875rem] text-ink-2 leading-relaxed">
-              Start by adding your first agricultural field to begin crop-health monitoring, hyperlocal weather risk tracking, and expert agronomy advisories.
+              {t("empty.noFieldsBody")}
             </p>
             <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
               <Link
@@ -312,7 +305,7 @@ function FarmerOverviewPage() {
                 className="inline-flex min-h-[44px] items-center gap-2 border border-forest bg-forest px-6 text-[0.9375rem] font-semibold text-surface shadow-sm hover:bg-[#0e2b20]"
               >
                 <Plus className="size-4" />
-                <span>+ Register Your First Field</span>
+                <span>+ {t("fields.addField")}</span>
               </Link>
             </div>
           </div>
@@ -332,11 +325,11 @@ function FarmerOverviewPage() {
                 <div className="flex items-center gap-2">
                   <Activity className="size-4 text-forest" />
                   <h2 className="font-display text-[1.125rem] font-bold text-ink">
-                    TODAY'S ACTIONS
+                    {t("farmer.todayActions")}
                   </h2>
                 </div>
                 <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                  Prioritized recommendations and scheduled field follow-ups
+                  {t("advisory.windowLabel")}
                 </p>
               </div>
 
@@ -344,7 +337,7 @@ function FarmerOverviewPage() {
                 to="/farmer/crop-care"
                 className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
               >
-                <span>View all actions</span>
+                <span>{t("action.readMore")}</span>
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
@@ -359,9 +352,9 @@ function FarmerOverviewPage() {
               <div className="mt-4 flex items-center gap-3 border border-leaf/30 bg-leaf/5 p-4 text-leaf">
                 <CheckCircle2 className="size-5 shrink-0" />
                 <div>
-                  <p className="font-semibold text-[0.9375rem]">You're all caught up.</p>
+                  <p className="font-semibold text-[0.9375rem]">{t("farmer.noActions")}</p>
                   <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                    No urgent crop-health actions or overdue follow-ups today.
+                    {t("farmer.allHealthy")}
                   </p>
                 </div>
               </div>
@@ -403,10 +396,10 @@ function FarmerOverviewPage() {
                       >
                         <span>
                           {act.type === "scan"
-                            ? "Scan Now"
+                            ? t("action.scanCrop")
                             : act.type === "followup"
-                              ? "Complete Follow-up"
-                              : "View Action"}
+                              ? t("followup.action")
+                              : t("action.viewDetails")}
                         </span>
                         <ArrowRight className="size-3" />
                       </Link>
@@ -427,11 +420,11 @@ function FarmerOverviewPage() {
                 <div className="flex items-center gap-2">
                   <Sprout className="size-4 text-forest" />
                   <h2 className="font-display text-[1.125rem] font-bold text-ink">
-                    MY FIELDS
+                    {t("farmer.myFields")}
                   </h2>
                 </div>
                 <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                  Showing top 3 fields needing attention · {totalArea} ha total monitored
+                  {t("farmer.topFields")} · {totalArea} ha {t("common.total")}
                 </p>
               </div>
 
@@ -439,7 +432,7 @@ function FarmerOverviewPage() {
                 to="/farmer/fields"
                 className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
               >
-                <span>View all {farmList.length} fields</span>
+                <span>{t("farmer.viewAllFields")} ({farmList.length})</span>
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
@@ -478,13 +471,13 @@ function FarmerOverviewPage() {
                         className="inline-flex min-h-[30px] items-center gap-1 rounded-[var(--r)] border border-line bg-surface px-2.5 text-[0.75rem] font-semibold text-forest hover:bg-forest hover:text-surface transition-colors"
                       >
                         <ScanLine className="size-3" />
-                        <span>Scan</span>
+                        <span>{t("action.scanCrop")}</span>
                       </Link>
                       <Link
                         to="/farmer/fields"
                         className="text-[0.75rem] text-ink-2 hover:text-forest hover:underline"
                       >
-                        Details →
+                        {t("action.viewDetails")} →
                       </Link>
                     </div>
                   </div>
@@ -503,11 +496,11 @@ function FarmerOverviewPage() {
                 <div className="flex items-center gap-2">
                   <CloudRain className="size-4 text-forest" />
                   <h2 className="font-display text-[1.125rem] font-bold text-ink">
-                    TODAY'S WEATHER & RISK
+                    {t("farmer.weatherRisk")}
                   </h2>
                 </div>
                 <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                  Hyperlocal microclimate observation for {tDistrict(districtId)}
+                  {tDistrict(districtId)}
                 </p>
               </div>
 
@@ -515,7 +508,7 @@ function FarmerOverviewPage() {
                 to="/farmer/forecast"
                 className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
               >
-                <span>View 7-Day Forecast</span>
+                <span>{t("forecast.sevenDay")}</span>
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
@@ -526,30 +519,30 @@ function FarmerOverviewPage() {
                 <div className="border border-line bg-paper p-3 text-center">
                   <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
                     <Thermometer className="size-4" />
-                    <span className="text-caption">TEMP</span>
+                    <span className="text-caption">{t("farmer.temperature")}</span>
                   </div>
                   <p className="num text-[1.25rem] font-bold text-ink">{weather.tMaxC}°C</p>
-                  <p className="text-[0.7rem] text-ink-2">Min {weather.tMinC}°C</p>
+                  <p className="text-[0.7rem] text-ink-2">{weather.tMinC}°C</p>
                 </div>
 
                 <div className="border border-line bg-paper p-3 text-center">
                   <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
                     <Droplets className="size-4" />
-                    <span className="text-caption">HUMIDITY</span>
+                    <span className="text-caption">{t("farmer.humidity")}</span>
                   </div>
                   <p className="num text-[1.25rem] font-bold text-water">{weather.rhPct}%</p>
                   <p className="text-[0.7rem] text-ink-2">
-                    {weather.rhPct >= 80 ? "High RH" : "Normal"}
+                    {weather.rhPct >= 80 ? t("risk.high") : t("status.healthy")}
                   </p>
                 </div>
 
                 <div className="border border-line bg-paper p-3 text-center">
                   <div className="flex items-center justify-center gap-1 text-ink-2 mb-1">
                     <CloudRain className="size-4" />
-                    <span className="text-caption">RAINFALL</span>
+                    <span className="text-caption">{t("farmer.rainfall")}</span>
                   </div>
                   <p className="num text-[1.25rem] font-bold text-forest">{weather.rainfallMm} mm</p>
-                  <p className="text-[0.7rem] text-ink-2">24h observed</p>
+                  <p className="text-[0.7rem] text-ink-2">24h</p>
                 </div>
               </div>
 
@@ -565,28 +558,28 @@ function FarmerOverviewPage() {
                           : "bg-leaf/15 text-leaf",
                       )}
                     >
-                      {weather.rhPct >= 75 || weather.rainfallMm > 20 ? "HIGH RISK" : "LOW RISK"}
+                      {weather.rhPct >= 75 || weather.rainfallMm > 20 ? t("risk.high") : t("risk.low")}
                     </span>
                     <span className="text-[0.875rem] font-bold text-ink">
-                      Fungal & Sucking Pest Pressure
+                      {t("farmer.diseasePressure")}
                     </span>
                   </div>
                   <p className="text-[0.8125rem] text-ink-2 mt-2 leading-relaxed">
                     {weather.rhPct >= 75 || weather.rainfallMm > 20
-                      ? `High atmospheric humidity (${weather.rhPct}%) and recent rainfall (${weather.rainfallMm} mm) create favorable conditions for fungal spore germination and sucking pest activity.`
-                      : "Current microclimate conditions are optimal with low immediate fungal disease risk."}
+                      ? `${t("farmer.humidity")} (${weather.rhPct}%) ${t("farmer.rainfall")} (${weather.rainfallMm} mm)`
+                      : t("farmer.allHealthy")}
                   </p>
                 </div>
 
                 <div className="mt-3 pt-2 border-t border-line flex items-center justify-between">
                   <span className="text-[0.75rem] text-ink-2">
-                    IPM tip: Inspect lower leaf canopy for early symptoms
+                    {t("scan.uploadHint")}
                   </span>
                   <Link
                     to="/farmer/forecast"
                     className="text-[0.75rem] font-semibold text-forest hover:underline"
                   >
-                    Details →
+                    {t("action.viewDetails")} →
                   </Link>
                 </div>
               </div>
@@ -603,11 +596,11 @@ function FarmerOverviewPage() {
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="size-4 text-amber" />
                   <h2 className="font-display text-[1.125rem] font-bold text-ink">
-                    LATEST CROP HEALTH ALERT
+                    {t("farmer.cropAlert")}
                   </h2>
                 </div>
                 <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                  Most critical active case requiring agronomic attention
+                  {t("farmer.fieldPulse")}
                 </p>
               </div>
 
@@ -615,7 +608,7 @@ function FarmerOverviewPage() {
                 to="/farmer/crop-care"
                 className="inline-flex items-center gap-1 text-[0.8125rem] font-semibold text-forest hover:underline"
               >
-                <span>View all cases in Crop Care</span>
+                <span>{t("farmer.cropCareHub")}</span>
                 <ArrowRight className="size-3.5" />
               </Link>
             </div>
@@ -626,9 +619,9 @@ function FarmerOverviewPage() {
               <div className="mt-4 flex items-center gap-3 border border-leaf/30 bg-leaf/5 p-4 text-leaf">
                 <CheckCircle2 className="size-5 shrink-0" />
                 <div>
-                  <p className="font-semibold text-[0.9375rem]">No Active Alerts</p>
+                  <p className="font-semibold text-[0.9375rem]">{t("farmer.noAlerts")}</p>
                   <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-                    All registered parcels are currently clear of active disease or pest flags.
+                    {t("farmer.allHealthy")}
                   </p>
                 </div>
               </div>
@@ -638,9 +631,9 @@ function FarmerOverviewPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="text-[0.6875rem] font-bold uppercase rounded-[var(--r)] bg-alert/15 text-alert px-1.5 py-0.5">
-                        {latestAlert.riskAssessment?.overallRisk?.toUpperCase() || "HIGH RISK"}
+                        {tRisk(latestAlert.riskAssessment?.overallRisk || "high")}
                       </span>
-                      <span className="num text-[0.75rem] text-ink-2">Case ID: {latestAlert.id}</span>
+                      <span className="num text-[0.75rem] text-ink-2">{t("field.caseId")}: {latestAlert.id}</span>
                     </div>
 
                     <h3 className="font-bold text-ink text-[1.125rem] flex items-center gap-2">
@@ -650,20 +643,20 @@ function FarmerOverviewPage() {
 
                     <p className="text-[0.875rem] text-ink-2 mt-0.5">
                       {tCrop(latestAlert.cropId)} · {latestAlertFarm?.name || latestAlert.farmId} (
-                      {latestAlertFarm?.village || "Amravati"})
+                      {latestAlertFarm?.village || tDistrict("amravati")})
                     </p>
                   </div>
 
                   {/* AI Assessment Badges */}
                   <div className="flex flex-wrap gap-2 md:justify-end">
                     <div className="border border-line bg-surface px-3 py-1.5 text-right">
-                      <span className="text-caption">AI CONFIDENCE</span>
+                      <span className="text-caption">{t("field.confidence")}</span>
                       <p className="num font-bold text-ink text-[0.9375rem]">
                         {latestAlert.confidence}%
                       </p>
                     </div>
                     <div className="border border-line bg-surface px-3 py-1.5 text-right">
-                      <span className="text-caption">GROWTH STAGE</span>
+                      <span className="text-caption">{t("field.growthStage")}</span>
                       <p className="font-bold text-ink text-[0.9375rem] capitalize">
                         {tStage(latestAlertFarm?.stage || "pod_fill")}
                       </p>
@@ -674,8 +667,8 @@ function FarmerOverviewPage() {
                 {/* Reason Explanation */}
                 <div className="mt-3.5 border-t border-amber/20 pt-3">
                   <p className="text-[0.8125rem] text-ink leading-relaxed">
-                    <span className="font-semibold text-ink">Why: </span>
-                    Visible symptoms ({latestAlert.evidence?.map((e) => e.label).join(", ") || "leaf discoloration and curl"}) combined with favourable local microclimate conditions.
+                    <span className="font-semibold text-ink">{t("scan.whyResult")}: </span>
+                    {latestAlert.evidence?.map((e) => e.label).join(", ") || t("scan.notFinal")}
                   </p>
                 </div>
 
@@ -686,7 +679,7 @@ function FarmerOverviewPage() {
                     className="inline-flex min-h-[38px] items-center gap-1.5 border border-forest bg-forest px-4 text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20] shadow-sm transition-colors"
                   >
                     <Eye className="size-3.5" />
-                    <span>View Assessment & Advisory</span>
+                    <span>{t("fields.viewAdvisory")}</span>
                   </Link>
 
                   <Link
@@ -695,7 +688,7 @@ function FarmerOverviewPage() {
                     className="inline-flex min-h-[38px] items-center gap-1.5 border border-line bg-surface px-4 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2 transition-colors"
                   >
                     <ScanLine className="size-3.5 text-forest" />
-                    <span>Start Re-Scan / Follow-up</span>
+                    <span>{t("action.scanCrop")}</span>
                   </Link>
                 </div>
               </div>

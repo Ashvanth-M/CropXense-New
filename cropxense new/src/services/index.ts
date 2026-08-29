@@ -42,12 +42,8 @@ export const districtById = (id: string): District | undefined => DISTRICTS.find
 export const districtName = (id: string) => districtById(id)?.name ?? id;
 export const cropById = (id: string): Crop | undefined => CROPS.find((c) => c.id === id);
 export const cropName = (id: string) => cropById(id)?.name ?? id;
-<<<<<<< HEAD
 export const farmById = (id: string): Farm | undefined =>
   store.farms.find((f) => f.id === id) || FARMS.find((f) => f.id === id);
-=======
-export const farmById = (id: string): Farm | undefined => store.farms.find((f) => f.id === id);
->>>>>>> origin/anirudh
 export const threatName = (id: string) =>
   DISEASES.find((d) => d.id === id)?.name ?? PESTS.find((p) => p.id === id)?.name ?? id;
 
@@ -353,15 +349,9 @@ export interface OverviewMetrics {
 export function getOverviewMetrics(): Promise<OverviewMetrics> {
   const activeFarms = store.farms.filter((f) => !f.isArchived);
   return delay({
-<<<<<<< HEAD
     fieldsMonitored: activeFarms.length,
     healthy: activeFarms.filter((f) => f.health === "healthy").length,
     atRisk: activeFarms.filter((f) => f.health === "at_risk" || f.health === "affected").length,
-=======
-    fieldsMonitored: store.farms.length,
-    healthy: store.farms.filter((f) => f.health === "healthy").length,
-    atRisk: store.farms.filter((f) => f.health === "at_risk").length,
->>>>>>> origin/anirudh
     activeOutbreaks: OUTBREAKS.filter((o) => o.risk === "high").length,
     pendingReview: store.assessments.filter((a) => a.status === "awaiting_validation").length,
     openFieldCases: store.visits.filter((v) => v.status === "scheduled").length,
