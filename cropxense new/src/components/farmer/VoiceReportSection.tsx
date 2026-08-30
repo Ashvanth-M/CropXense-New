@@ -140,7 +140,6 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
   const [submitting, setSubmitting] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<VoiceAnalysisResult | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
   const [isTranscribingServer, setIsTranscribingServer] = useState(false);
   const [transcribedEngine, setTranscribedEngine] = useState<"speechmatics" | "webspeech" | "gemini" | "preset" | null>(null);
   const [isPlayingTts, setIsPlayingTts] = useState(false);
@@ -154,16 +153,13 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     else setSpeechLangCode("en-IN");
   }, [appLang]);
 
-  // Clean up TTS and audio URL on unmount
+  // Clean up TTS on unmount
   useEffect(() => {
     return () => {
       stopSpeakingAdvisory();
       voiceManager.stopListening();
-      if (recordedAudioUrl) {
-        URL.revokeObjectURL(recordedAudioUrl);
-      }
     };
-  }, [recordedAudioUrl]);
+  }, []);
 
   // Process captured audio blob through Speechmatics & Gemini
   const processCapturedAudioBlob = useCallback(
@@ -237,7 +233,6 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
   const startRecording = useCallback(async () => {
     stopSpeakingAdvisory();
     setIsPlayingTts(false);
-    setRecordedAudioUrl(null);
 
     const success = await voiceManager.startListening(speechLangCode, {
       onInterim: (text) => {
@@ -277,10 +272,6 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     setState("stopped");
     setAudioLevel(0);
 
-    if (result.audioUrl) {
-      setRecordedAudioUrl(result.audioUrl);
-    }
-
     if (result.text) {
       setTranscript(result.text);
     }
@@ -295,7 +286,6 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     setIsPlayingTts(false);
     await voiceManager.stopListening();
     setTranscript("");
-    setRecordedAudioUrl(null);
     setState("idle");
     setAnalysisResult(null);
     setTranscribedEngine(null);
@@ -602,17 +592,6 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
             </div>
           )}
         </div>
-
-        {/* Audio Recording Replay Player */}
-        {recordedAudioUrl && (
-          <div className="border border-line bg-surface-2 p-3 rounded flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-ink font-semibold">
-              <Volume2 className="size-4 text-forest" />
-              <span>Listen back to your recorded voice note:</span>
-            </div>
-            <audio src={recordedAudioUrl} controls className="h-8 max-w-xs" />
-          </div>
-        )}
 
         {/* 1-Click Multilingual Problem Presets */}
         <div className="border border-line bg-surface-2 p-3.5 rounded space-y-2">
