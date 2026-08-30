@@ -110,7 +110,7 @@ export function CropAbnormalitySection({ farms, onAssessment }: Props) {
 
   const handleAssess = useCallback(() => {
     if (!affected || !spread || !noticed) {
-      toast({ title: "Incomplete", description: "Please answer all questions before checking.", variant: "destructive" });
+      toast("Please answer all questions before checking.", "critical");
       return;
     }
 

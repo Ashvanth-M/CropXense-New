@@ -345,9 +345,9 @@ function ExpertReviewsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="num font-mono text-[0.8125rem] font-bold text-forest">{activeCase.id}</span>
                     <StatusChip status="watch" />
-                    {activeCase.source && (
+                    {(activeCase as any).source && (
                       <span className="text-[0.6875rem] font-bold uppercase px-2 py-0.5 border border-forest/30 bg-forest/10 text-forest">
-                        {activeCase.source === "voice_report" ? "🎙 Voice Report" : activeCase.source === "assisted_report" ? "📋 Officer Assisted" : "📷 Smartphone Scan"}
+                        {(activeCase as any).source === "voice_report" ? "🎙 Voice Report" : (activeCase as any).source === "assisted_report" ? "📋 Officer Assisted" : "📷 Smartphone Scan"}
                       </span>
                     )}
                     <span className="text-[0.75rem] text-ink-2">{activeCase.detectedAt}</span>

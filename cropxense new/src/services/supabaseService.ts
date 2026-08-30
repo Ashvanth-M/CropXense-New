@@ -2100,16 +2100,18 @@ function addTimelineEvent(
   unifiedStore.timelineEvents = [event, ...unifiedStore.timelineEvents];
 
   // Async Supabase write
-  supabase.from("case_timeline_events").insert({
-    id: event.id,
-    case_id: caseId,
-    event_type: eventType,
-    title,
-    detail,
-    actor_role: actorRole,
-  }).then(() => {}).catch((err) => {
+  try {
+    void supabase.from("case_timeline_events").insert({
+      id: event.id,
+      case_id: caseId,
+      event_type: eventType,
+      title,
+      detail,
+      actor_role: actorRole,
+    });
+  } catch (err: unknown) {
     console.debug("Supabase addTimelineEvent notice:", err);
-  });
+  }
 }
 
 export { addTimelineEvent };
@@ -2230,38 +2232,53 @@ export async function processSyncRecord(record: OfflineSyncRecord): Promise<void
   const payload = record.payload as Record<string, unknown>;
 
   switch (record.recordType) {
-    case "voice_report":
+    case "voice_report": {
+      const farmerId = payload["farmerId"] as string | undefined;
+      const fieldId = payload["fieldId"] as string | undefined;
+      const crop = payload["crop"] as string | undefined;
+      const symptomsText = payload["symptomsText"] as string | undefined;
       await submitVoiceReport({
-        farmerId: payload.farmerId as string | undefined,
-        fieldId: payload.fieldId as string | undefined,
-        transcript: (payload.transcript as string) || "",
-        language: (payload.language as string) || "en",
-        crop: payload.crop as string | undefined,
-        symptomsText: payload.symptomsText as string | undefined,
+        transcript: (payload["transcript"] as string) || "",
+        language: (payload["language"] as string) || "en",
+        ...(farmerId !== undefined ? { farmerId } : {}),
+        ...(fieldId !== undefined ? { fieldId } : {}),
+        ...(crop !== undefined ? { crop } : {}),
+        ...(symptomsText !== undefined ? { symptomsText } : {}),
       });
       break;
+    }
 
-    case "observation":
-      // Create a basic case from offline observation
+    case "observation": {
+      const farmerId = payload["farmerId"] as string | undefined;
+      const fieldId = payload["fieldId"] as string | undefined;
+      const crop = payload["crop"] as string | undefined;
+      const notes = payload["notes"] as string | undefined;
+      const symptoms = payload["symptoms"] as string[] | undefined;
       await submitVoiceReport({
-        farmerId: payload.farmerId as string | undefined,
-        fieldId: payload.fieldId as string | undefined,
-        transcript: (payload.notes as string) || (payload.symptoms as string[])?.join(", ") || "Offline observation",
-        language: (payload.language as string) || "en",
-        crop: payload.crop as string | undefined,
+        transcript: notes || symptoms?.join(", ") || "Offline observation",
+        language: (payload["language"] as string) || "en",
+        ...(farmerId !== undefined ? { farmerId } : {}),
+        ...(fieldId !== undefined ? { fieldId } : {}),
+        ...(crop !== undefined ? { crop } : {}),
       });
       break;
+    }
 
-    case "feedback":
-      if (payload.caseId && payload.farmId && payload.observation) {
+    case "feedback": {
+      const caseId = payload["caseId"] as string | undefined;
+      const farmId = payload["farmId"] as string | undefined;
+      const observation = payload["observation"] as FarmerObservation | undefined;
+      const notes = payload["notes"] as string | undefined;
+      if (caseId && farmId && observation) {
         await submitFarmerFeedback(
-          payload.caseId as string,
-          payload.farmId as string,
-          payload.observation as FarmerObservation,
-          payload.notes as string | undefined,
+          caseId,
+          farmId,
+          observation,
+          notes,
         );
       }
       break;
+    }
 
     default:
       console.debug("Unknown sync record type:", record.recordType);
@@ -2292,7 +2309,7 @@ export function getAllReportsForOfficer(): UnifiedReport[] {
     const farm = vr.fieldId ? farmById(vr.fieldId) : undefined;
     reports.push({
       id: vr.id,
-      caseId: vr.caseId,
+      ...(vr.caseId ? { caseId: vr.caseId } : {}),
       source: "voice_report",
       farmerName: farm?.ownerName || "Farmer",
       village: farm?.village || "Unknown",
@@ -2307,7 +2324,7 @@ export function getAllReportsForOfficer(): UnifiedReport[] {
   unifiedStore.assistedReports.forEach((ar) => {
     reports.push({
       id: ar.id,
-      caseId: ar.caseId,
+      ...(ar.caseId ? { caseId: ar.caseId } : {}),
       source: "assisted_report",
       farmerName: ar.farmerName || "Unknown",
       village: ar.village || "Unknown",

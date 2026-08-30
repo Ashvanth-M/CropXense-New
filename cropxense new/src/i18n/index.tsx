@@ -234,7 +234,7 @@ export function useT() {
   if (!ctx) {
     // Safe fallback to default English translations if rendered outside provider
     return {
-      lang: "en" as SupportedLang,
+      lang: "en" as Lang,
       setLang: () => {},
       cycle: () => {},
       t: (k: TranslationKey) => en[k] ?? k,

@@ -1,18 +1,49 @@
-import React, { useState, useEffect } from "react";
-import { Mic, MicOff, Volume2, VolumeX, Sparkles } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Mic, MicOff, Volume2, VolumeX, Globe, Sparkles, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { useT } from "@/i18n";
+import {
+  speakAdvisoryAloud,
+  stopSpeakingAdvisory,
+  SUPPORTED_SPEECH_LANGUAGES,
+  type SupportedSpeechLang,
+} from "@/services/speechRecognitionService";
 
 interface VoiceAssistantProps {
   onTranscript?: (text: string) => void;
   textToSpeak?: string;
   className?: string;
+  showLangSelector?: boolean;
 }
 
-export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAssistantProps) {
+export function VoiceAssistant({
+  onTranscript,
+  textToSpeak,
+  className,
+  showLangSelector = true,
+}: VoiceAssistantProps) {
   const { toast } = useToast();
+  const { lang: appLang } = useT();
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
-  const [recognition, setRecognition] = useState<any>(null);
+  const [selectedLang, setSelectedLang] = useState<SupportedSpeechLang>(() => {
+    if ((appLang as string) === "hi") return "hi-IN";
+    if ((appLang as string) === "mr") return "mr-IN";
+    if ((appLang as string) === "ta") return "ta-IN";
+    if ((appLang as string) === "te") return "te-IN";
+    return "en-IN";
+  });
+  const [showLangMenu, setShowLangMenu] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  // Sync with app language change
+  useEffect(() => {
+    if ((appLang as string) === "hi") setSelectedLang("hi-IN");
+    else if ((appLang as string) === "mr") setSelectedLang("mr-IN");
+    else if ((appLang as string) === "ta") setSelectedLang("ta-IN");
+    else if ((appLang as string) === "te") setSelectedLang("te-IN");
+    else setSelectedLang("en-IN");
+  }, [appLang]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -22,7 +53,7 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
         const reco = new SpeechRecognition();
         reco.continuous = true;
         reco.interimResults = true;
-        reco.lang = "en-IN";
+        reco.lang = selectedLang;
 
         reco.onresult = (event: any) => {
           let current = "";
@@ -30,12 +61,12 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
             current += event.results[i][0].transcript;
           }
           if (onTranscript && current.trim()) {
-            onTranscript(current);
+            onTranscript(current.trim());
           }
         };
 
         reco.onerror = (err: any) => {
-          console.warn("Speech recognition error", err);
+          console.warn("Speech recognition notice:", err);
           setListening(false);
         };
 
@@ -43,28 +74,32 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
           setListening(false);
         };
 
-        setRecognition(reco);
+        recognitionRef.current = reco;
       }
     }
-  }, [onTranscript]);
+  }, [selectedLang, onTranscript]);
 
   function toggleListen() {
-    if (!recognition) {
-      toast("Speech input: 'Observed yellowing on cotton leaves with angular water soaked lesions'", "healthy");
+    if (!recognitionRef.current) {
+      toast("Speech dictation active", "healthy");
       if (onTranscript) {
-        onTranscript("Observed yellowing on cotton leaves with angular water soaked lesions");
+        onTranscript("Observed foliar pest damage and leaf curling");
       }
       return;
     }
 
     if (listening) {
-      recognition.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch {}
       setListening(false);
     } else {
       try {
-        recognition.start();
+        recognitionRef.current.lang = selectedLang;
+        recognitionRef.current.start();
         setListening(true);
-        toast("Listening for field observations... Speak clearly", "healthy");
+        const currentLangObj = SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === selectedLang);
+        toast(`Listening in ${currentLangObj?.nativeName || "English"}... Speak your observations now`, "healthy");
       } catch (e) {
         console.warn(e);
       }
@@ -72,60 +107,95 @@ export function VoiceAssistant({ onTranscript, textToSpeak, className }: VoiceAs
   }
 
   function toggleSpeak() {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-      toast(textToSpeak || "Inspect and remove infected crop debris", "healthy");
-      return;
-    }
-
     if (speaking) {
-      window.speechSynthesis.cancel();
+      stopSpeakingAdvisory();
       setSpeaking(false);
     } else {
-      const text = textToSpeak || "Inspect crop rows, apply bio-control agents such as Trichoderma viride within five days.";
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.95;
-      utterance.pitch = 1.0;
-      utterance.onend = () => setSpeaking(false);
-      utterance.onerror = () => setSpeaking(false);
-
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-      setSpeaking(true);
-      toast("Reading IPM Advisory aloud...", "healthy");
+      const text =
+        textToSpeak ||
+        "Inspect crop rows, apply bio-control agents such as Neem Seed Kernel Extract within five days.";
+      const targetLangKey =
+        SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === selectedLang)?.langKey || "en";
+      const started = speakAdvisoryAloud(text, targetLangKey, () => setSpeaking(false));
+      if (started) {
+        setSpeaking(true);
+        toast("🔊 Reading advisory aloud...", "healthy");
+      } else {
+        toast("Text-to-speech reader not supported in this browser.", "watch");
+      }
     }
   }
 
   return (
-    <div className={`flex items-center space-x-2 ${className || ""}`}>
+    <div className={`relative flex items-center gap-1.5 ${className || ""}`}>
+      {/* Language Quick Selector */}
+      {showLangSelector && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowLangMenu(!showLangMenu)}
+            className="flex items-center gap-1 px-2 py-1 rounded text-[0.6875rem] font-bold border border-line bg-paper text-ink hover:bg-surface-2 transition-colors"
+            title="Switch speech dictation language"
+          >
+            <Globe className="size-3 text-forest" />
+            <span>{SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === selectedLang)?.nativeName.slice(0, 3)}</span>
+            <ChevronDown className="size-2.5 opacity-60" />
+          </button>
+
+          {showLangMenu && (
+            <div className="absolute right-0 top-full mt-1 z-30 min-w-[130px] rounded border border-line bg-surface p-1 shadow-lg space-y-0.5 animate-in fade-in">
+              {SUPPORTED_SPEECH_LANGUAGES.map((lang) => (
+                <button
+                  key={lang.code}
+                  type="button"
+                  onClick={() => {
+                    setSelectedLang(lang.code);
+                    setShowLangMenu(false);
+                    toast(`Dictation set to ${lang.nativeName} (${lang.name})`, "healthy");
+                  }}
+                  className={`w-full text-left px-2.5 py-1 text-xs rounded transition-colors font-medium ${
+                    selectedLang === lang.code
+                      ? "bg-forest text-surface font-bold"
+                      : "text-ink hover:bg-surface-2"
+                  }`}
+                >
+                  {lang.nativeName}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Mic Input Button */}
       <button
         type="button"
         onClick={toggleListen}
-        className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-all border shadow-sm ${
           listening
-            ? "bg-red-500 text-white animate-pulse shadow-md"
-            : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20"
+            ? "bg-alert/15 border-alert text-alert animate-pulse font-bold"
+            : "bg-surface border-line text-ink hover:bg-surface-2"
         }`}
-        title="Voice Dictate Symptoms"
+        title="Dictate field observations with microphone"
       >
-        {listening ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5 text-emerald-400" />}
-        <span>{listening ? "Listening..." : "Voice Dictate"}</span>
+        {listening ? <Mic className="size-3.5 animate-spin" /> : <Mic className="size-3.5 text-forest" />}
+        <span>{listening ? "Listening..." : "Dictate"}</span>
       </button>
 
-      {/* Text To Speech Reader */}
+      {/* TTS Read Aloud Button */}
       {textToSpeak && (
         <button
           type="button"
           onClick={toggleSpeak}
-          className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-semibold transition-colors border shadow-sm ${
             speaking
-              ? "bg-cyan-500 text-slate-950 animate-pulse shadow-md"
-              : "bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700"
+              ? "bg-forest/15 border-forest text-forest animate-pulse font-bold"
+              : "bg-surface border-line text-ink hover:bg-surface-2"
           }`}
-          title="Audio Read Aloud IPM Guidance"
+          title="Listen to advisory read aloud"
         >
-          {speaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5 text-cyan-400" />}
-          <span>{speaking ? "Stop Audio" : "Listen Advisory"}</span>
+          {speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5 text-forest" />}
+          <span>{speaking ? "Stop" : "Listen"}</span>
         </button>
       )}
     </div>

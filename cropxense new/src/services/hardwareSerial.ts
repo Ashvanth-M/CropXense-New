@@ -327,7 +327,7 @@ class HardwareSerialService {
       humidity,
       soilMoisture,
       timestamp: now,
-      rawLine,
+      ...(rawLine !== undefined ? { rawLine } : {}),
     };
 
     // Track temperature for thermal spike detection

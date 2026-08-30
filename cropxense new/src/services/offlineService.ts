@@ -195,7 +195,8 @@ export async function syncPendingRecords(): Promise<{ synced: number; failed: nu
     for (const img of images) {
       try {
         const { uploadScanImage } = await import("./supabaseService");
-        await uploadScanImage(img.blob, (img.metadata?.userId as string) || "offline", img.id);
+        const userId = (img.metadata && (img.metadata["userId"] as string)) || "offline";
+        await uploadScanImage(img.blob, userId, img.id);
         await removeImage(img.id);
         synced++;
       } catch (err) {

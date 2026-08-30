@@ -48,34 +48,40 @@ export function AssistedReportForm({ onReportCreated }: Props) {
 
   const handleSubmit = useCallback(async () => {
     if (!farmerName.trim() && !village.trim()) {
-      toast({ title: "Required fields", description: "Please provide at least the farmer's name or village.", variant: "destructive" });
+      toast("Please provide at least the farmer's name or village.", "critical");
       return;
     }
     if (symptoms.length === 0 && !notes.trim()) {
-      toast({ title: "Describe the problem", description: "Please select symptoms or add notes about the crop problem.", variant: "destructive" });
+      toast("Please select symptoms or add notes about the crop problem.", "critical");
       return;
     }
 
     setSubmitting(true);
     try {
+      const p = phone.trim();
+      const c = crop.trim();
+      const n = notes.trim();
+      const obs = observation.trim();
+      const a = area.trim();
+
       const result = await submitAssistedReport({
         officerId: user?.id || "demo-officer-priya",
         farmerName: farmerName.trim(),
-        phone: phone.trim() || undefined,
         village: village.trim(),
-        crop: crop || undefined,
         symptoms,
-        notes: notes.trim() || undefined,
-        officerObservation: observation.trim() || undefined,
-        approximateArea: area || undefined,
+        ...(p ? { phone: p } : {}),
+        ...(c ? { crop: c } : {}),
+        ...(n ? { notes: n } : {}),
+        ...(obs ? { officerObservation: obs } : {}),
+        ...(a ? { approximateArea: a } : {}),
       });
       setCreatedCaseId(result.caseId);
       setSubmitted(true);
-      toast({ title: "Report created", description: `Case ${result.caseId} created for farmer ${farmerName || "Unknown"}.` });
+      toast(`Case ${result.caseId} created for farmer ${farmerName || "Unknown"}.`, "healthy");
       onReportCreated?.(result.caseId);
     } catch (err) {
       console.error("Assisted report error:", err);
-      toast({ title: "Error", description: "Failed to create report.", variant: "destructive" });
+      toast("Failed to create report.", "critical");
     } finally {
       setSubmitting(false);
     }

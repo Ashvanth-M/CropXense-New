@@ -14,7 +14,7 @@ const GEMINI_MODEL = "gemini-2.0-flash";
 
 function getApiKey(): string {
   // Server-side environment variable (not VITE_ prefixed = server only)
-  return process.env.GEMINI_API_KEY || "";
+  return (typeof process !== "undefined" && process.env && process.env["GEMINI_API_KEY"]) || "";
 }
 
 /** Language codes to full language names for prompting */
@@ -188,24 +188,25 @@ export async function analyzeVoiceTranscriptWithGemini(
 }> {
   const apiKey = getApiKey();
   if (!apiKey) {
-    // Fallback: basic keyword extraction
-    return fallbackTranscriptAnalysis(transcript, cropName);
+    // Fallback: basic keyword extraction with selected language
+    return fallbackTranscriptAnalysis(transcript, cropName, language);
   }
 
   const langName = LANG_NAMES[language] || "English";
 
   const prompt = `You are an agricultural assistant. A farmer described their crop problem verbally. Extract structured information from their statement.
+CRITICAL: Write all fields (crop, symptoms, explanation, next_action) in the requested language: ${langName} (${language}).
 
 Farmer's statement: "${transcript}"
 ${cropName ? `Known crop: ${cropName}` : ""}
 
 Return ONLY valid JSON:
 {
-  "crop": "identified crop or 'unknown'",
-  "symptoms": ["extracted symptoms"],
+  "crop": "identified crop name in ${langName}",
+  "symptoms": ["extracted symptoms in ${langName}"],
   "severity": "low|medium|high",
-  "explanation": "Brief analysis in ${langName}",
-  "next_action": "What the farmer should do next, in ${langName}"
+  "explanation": "Brief diagnostic analysis in ${langName}",
+  "next_action": "Actionable immediate steps for the farmer in ${langName}"
 }`;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
@@ -233,7 +234,7 @@ Return ONLY valid JSON:
     return JSON.parse(text);
   } catch (err) {
     console.error("Gemini voice analysis error:", err);
-    return fallbackTranscriptAnalysis(transcript, cropName);
+    return fallbackTranscriptAnalysis(transcript, cropName, language);
   }
 }
 
@@ -260,7 +261,7 @@ function fallbackTranscriptAnalysis(
   if (lower.includes("white") || lower.includes("सफेद") || lower.includes("पांढर") || lower.includes("வெள்ளை")) symptoms.push("Whitefly / Powdery mildew");
   if (lower.includes("curl") || lower.includes("मुड़") || lower.includes("गोळा") || lower.includes("चुरडा") || lower.includes("சுருள்")) symptoms.push("Leaf curling & viral symptoms");
   if (lower.includes("sticky") || lower.includes("चिपचिप") || lower.includes("चिकटा") || lower.includes("பிசுபிசு")) symptoms.push("Sticky honeydew excretions");
-  if (lower.includes("stunt") || खुंट | lower.includes("बौन") || lower.includes("குட்டை")) symptoms.push("Stunted crop growth");
+  if (lower.includes("stunt") || lower.includes("खुंट") || lower.includes("बौन") || lower.includes("குட்டை")) symptoms.push("Stunted crop growth");
   if (lower.includes("rot") || lower.includes("सड़") || lower.includes("सड") || lower.includes("अझूक")) symptoms.push("Stem / root rot");
 
   // Multilingual crop detection
@@ -296,7 +297,7 @@ function fallbackTranscriptAnalysis(
     },
   };
 
-  const output = LOCALIZED_OUTPUTS[language] || LOCALIZED_OUTPUTS.en!;
+  const output = LOCALIZED_OUTPUTS[language] || LOCALIZED_OUTPUTS["en"]!;
 
   return {
     crop,
@@ -306,3 +307,62 @@ function fallbackTranscriptAnalysis(
     next_action: output.next_action,
   };
 }
+
+/**
+ * Transcribe raw audio data with Gemini Multimodal API.
+ */
+export async function transcribeAudioWithGemini(
+  audioBase64: string,
+  mimeType: string = "audio/webm",
+  language: string = "en",
+): Promise<{ text: string; language: string }> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return { text: "", language };
+  }
+
+  const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/, "");
+  const langName = LANG_NAMES[language] || "English / Indian Regional Language";
+
+  const prompt = `Listen to the audio recording of the Indian farmer. Transcribe what they spoke with maximum precision in ${langName} script or Romanized script. Return ONLY the transcribed text.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inline_data: {
+                  mime_type: mimeType.split(";")[0],
+                  data: cleanBase64,
+                },
+              },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 1024,
+        },
+      }),
+    });
+
+    if (!response.ok) throw new Error(`Gemini Multimodal Audio ${response.status}`);
+
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
+    return { text, language };
+  } catch (err) {
+    console.warn("Gemini audio transcription fallback note:", err);
+    return { text: "", language };
+  }
+}
+
+export const transcribeAudioDirectWithGemini = transcribeAudioWithGemini;
+

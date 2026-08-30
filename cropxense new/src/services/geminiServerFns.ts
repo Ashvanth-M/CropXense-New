@@ -55,3 +55,23 @@ export const analyzeVoiceWithGemini = createServerFn({ method: "POST" })
     const { analyzeVoiceTranscriptWithGemini } = await import("@/services/geminiService");
     return analyzeVoiceTranscriptWithGemini(data.transcript, data.language, data.cropName);
   });
+
+/**
+ * Server function: Transcribe raw audio with Gemini Multimodal API.
+ */
+export const transcribeAudioWithGeminiFn = createServerFn({ method: "POST" })
+  .validator(
+    (data: {
+      audioBase64: string;
+      mimeType?: string;
+      language?: string;
+    }) => data,
+  )
+  .handler(async ({ data }) => {
+    const { transcribeAudioWithGemini } = await import("@/services/geminiService");
+    return transcribeAudioWithGemini(data.audioBase64, data.mimeType || "audio/webm", data.language || "en");
+  });
+
+export const transcribeAudioDirectWithGeminiFn = transcribeAudioWithGeminiFn;
+
+

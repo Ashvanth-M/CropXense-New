@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Sparkles, Eye, ShieldAlert, Activity, CheckCircle2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { cx } from "@/lib/cx";
 
 export type AnalysisResult = {
   chlorosisPct: number;

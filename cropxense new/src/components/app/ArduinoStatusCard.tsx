@@ -138,7 +138,7 @@ export function ArduinoStatusCard({
       recordSensorReading(
         { temperature: safeTemp, humidity: safeHum, soilMoisture: safeSoil },
         {
-          farmerId: user?.id,
+          ...(user?.id ? { farmerId: user.id } : {}),
           fieldId,
           source: isConnected ? "hardware" : "simulated",
         },

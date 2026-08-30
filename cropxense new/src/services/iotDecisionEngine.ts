@@ -154,7 +154,7 @@ export function evaluateCropSuitability(
   rh: number,
   soilMoisture: number,
 ): CropSuitabilityResult {
-  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS.cotton!;
+  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS["cotton"]!;
   let score = 100;
   const parameters: ParameterSuitability[] = [];
 
@@ -271,7 +271,7 @@ export function computeIrrigationRecommendation(
   cropId: string,
   temp: number,
 ): IrrigationRecommendationResult {
-  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS.cotton!;
+  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS["cotton"]!;
   const threshold = crop.irrigationThresholdVwc;
   const critical = crop.criticalStressVwc;
 
@@ -337,7 +337,7 @@ export function computeCropStress(
   soilMoisture: number,
   cropId: string,
 ): CropStressResult {
-  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS.cotton!;
+  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS["cotton"]!;
 
   // Approximate Vapor Pressure Deficit (VPD in kPa)
   const svp = 0.61078 * Math.exp((17.27 * temp) / (temp + 237.3));
@@ -452,7 +452,7 @@ export function generateSmartSensorAlerts(
 ): SmartSensorAlert[] {
   const alerts: SmartSensorAlert[] = [];
   const now = new Date().toISOString();
-  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS.cotton!;
+  const crop = AGRONOMIC_CROP_THRESHOLDS[cropId] || AGRONOMIC_CROP_THRESHOLDS["cotton"]!;
 
   // 1. Connection / Offline Alert
   if (status === "offline") {

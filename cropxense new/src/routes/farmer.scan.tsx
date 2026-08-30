@@ -312,7 +312,7 @@ function FarmerScanPage() {
       visualScore: visualConfidence,
       temperature: effectiveTemp,
       humidity: effectiveHum,
-      soilMoisture: effectiveSoil,
+      ...(effectiveSoil !== undefined ? { soilMoisture: effectiveSoil } : {}),
       isHardwareLive: isHardwareActive,
     });
 
@@ -457,7 +457,7 @@ function FarmerScanPage() {
             diseaseRisk: diagnosis.multiSourceRisk.riskLevel === "critical" || diagnosis.multiSourceRisk.riskLevel === "high" ? "high" : "moderate",
             pestRisk: "moderate",
             spreadRisk: effectiveHum >= 80 ? "high" : "low",
-            overallRisk: diagnosis.multiSourceRisk.riskLevel,
+            overallRisk: (diagnosis.multiSourceRisk.riskLevel === "critical" ? "high" : diagnosis.multiSourceRisk.riskLevel) as "high" | "moderate" | "low",
             drivers: diagnosis.multiSourceRisk.drivers,
           },
           explanations: [

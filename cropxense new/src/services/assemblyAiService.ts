@@ -2,11 +2,11 @@
  * CropXense AssemblyAI Audio-to-Text Transcription Service.
  *
  * Provides high-accuracy speech recognition for rural Indian farmers across
- * Hindi, Marathi, Tamil, Telugu, and Indian English using AssemblyAI.
+ * Hindi, Marathi, Tamil, and Indian English using AssemblyAI's Universal models.
  */
 
 const ASSEMBLYAI_API_KEY =
-  (typeof process !== "undefined" && process.env?.ASSEMBLYAI_API_KEY) ||
+  (typeof process !== "undefined" && process.env && process.env["ASSEMBLYAI_API_KEY"]) ||
   "c2a27b47564247428935d00e29f78f08";
 
 export interface AssemblyAiTranscriptionResult {
@@ -41,14 +41,19 @@ export async function transcribeAudioWithAssemblyAI(
     }
   }
 
+  if (audioBuffer.length < 100) {
+    throw new Error("Audio buffer is too short to transcribe.");
+  }
+
   // 2. Upload audio payload to AssemblyAI
+  const audioBlob = new Blob([new Uint8Array(audioBuffer)], { type: "application/octet-stream" });
   const uploadRes = await fetch("https://api.assemblyai.com/v2/upload", {
     method: "POST",
     headers: {
       Authorization: ASSEMBLYAI_API_KEY,
       "Content-Type": "application/octet-stream",
     },
-    body: audioBuffer,
+    body: audioBlob,
   });
 
   if (!uploadRes.ok) {
@@ -62,21 +67,22 @@ export async function transcribeAudioWithAssemblyAI(
     throw new Error("AssemblyAI upload failed: No upload_url returned.");
   }
 
-  // 3. Request Transcription
-  // Map our app language codes to AssemblyAI codes if specified
+  // 3. Configure Multilingual Universal Models
   let targetLangCode: string | undefined = undefined;
   if (languageCode === "hi" || languageCode === "hi-IN") targetLangCode = "hi";
   else if (languageCode === "mr" || languageCode === "mr-IN") targetLangCode = "mr";
   else if (languageCode === "ta" || languageCode === "ta-IN") targetLangCode = "ta";
   else if (languageCode === "en" || languageCode === "en-IN") targetLangCode = "en";
 
-  const transcriptPayload: Record<string, any> = {
+  const transcriptPayload: Record<string, unknown> = {
     audio_url: audioUrl,
-    language_detection: !targetLangCode,
+    speech_models: ["universal-3-5-pro", "universal-2"],
   };
 
   if (targetLangCode) {
-    transcriptPayload.language_code = targetLangCode;
+    transcriptPayload["language_code"] = targetLangCode;
+  } else {
+    transcriptPayload["language_detection"] = true;
   }
 
   const startRes = await fetch("https://api.assemblyai.com/v2/transcript", {

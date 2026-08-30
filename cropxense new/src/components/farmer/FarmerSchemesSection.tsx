@@ -29,7 +29,13 @@ export function FarmerSchemesSection({ farms, compact = false }: Props) {
   const displaySchemes = compact ? filteredSchemes.slice(0, 3) : filteredSchemes;
 
   const handleCheckEligibility = useCallback((schemeId: string) => {
-    const result = checkSchemeEligibility(schemeId, eligInput);
+    const result = checkSchemeEligibility(schemeId, {
+      ...(eligInput.crop ? { crop: eligInput.crop } : {}),
+      ...(eligInput.landSizeHa ? { landSizeHa: eligInput.landSizeHa } : {}),
+      ...(eligInput.district ? { district: eligInput.district } : {}),
+      ...(eligInput.farmerCategory ? { farmerCategory: eligInput.farmerCategory } : {}),
+      ...(eligInput.hasIrrigation !== undefined ? { hasIrrigation: eligInput.hasIrrigation } : {}),
+    });
     setEligResult(result);
   }, [eligInput]);
 

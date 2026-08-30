@@ -120,7 +120,7 @@ function AssistedReportsPage() {
                   <td colSpan={7} className="px-4 py-8 text-center text-ink-2">No reports found.</td>
                 </tr>
               ) : filteredReports.map((report) => {
-                const sourceConfig = SOURCE_LABELS[report.source] || SOURCE_LABELS.scan!;
+                const sourceConfig = SOURCE_LABELS[report.source] || SOURCE_LABELS["scan"]!;
                 const SourceIcon = sourceConfig.icon;
                 return (
                   <tr

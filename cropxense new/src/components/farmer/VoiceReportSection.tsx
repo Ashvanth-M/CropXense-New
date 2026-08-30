@@ -1,12 +1,13 @@
 /**
  * VoiceReportSection — Multilingual "Call & Speak Your Crop Problem"
  *
- * Real Voice AI & Rural Decision Support powered by AssemblyAI & Gemini:
- * 1. AssemblyAI Neural Speech-to-Text API for high-precision multilingual transcription (Hindi, Marathi, Tamil, Indian English)
- * 2. Real-time MediaRecorder audio capture with animated Audio Level Waveform
- * 3. 1-Click Multilingual Voice Problem Presets (English, Hindi, Marathi, Tamil)
- * 4. Multimodal Gemini NLP analysis generating instant symptoms extraction, risk assessment, and localized actionable IPM steps
- * 5. Automatic Case registration in Supabase with dispatch to Agriculture Extension Officers
+ * Real Voice AI & Rural Decision Support with full client & server voice pipeline:
+ * 1. Real-time Web Speech API + Speechmatics Universal ASR + Gemini Multimodal Audio
+ * 2. Animated audio level waveform & interactive audio playback player
+ * 3. Multilingual Text-to-Speech (TTS) advisory reader ("Listen Aloud" button)
+ * 4. 1-Click Multilingual Voice Problem Presets (Hindi, Marathi, Tamil, Telugu, English)
+ * 5. Instant AI Symptoms Extraction, Severity Assessment, and Localized IPM Action Plan
+ * 6. Automatic Case registration in Supabase with dispatch to Agriculture Extension Officers
  */
 
 import { useState, useRef, useCallback, useEffect } from "react";
@@ -29,6 +30,7 @@ import {
   HelpCircle,
   Clock,
   Volume2,
+  VolumeX,
   Globe,
   Radio,
   Cpu,
@@ -39,8 +41,15 @@ import { useAuth } from "@/auth/AuthContext";
 import { cx } from "@/lib/cx";
 import type { Farm } from "@/types";
 import { submitVoiceReport } from "@/services/supabaseService";
-import { analyzeVoiceWithGemini } from "@/services/geminiServerFns";
-import { transcribeVoiceWithAssemblyAI } from "@/services/assemblyAiServerFn";
+import { analyzeVoiceWithGemini, transcribeAudioWithGeminiFn } from "@/services/geminiServerFns";
+import { transcribeVoiceWithSpeechmatics } from "@/services/speechmaticsServerFn";
+import {
+  voiceManager,
+  speakAdvisoryAloud,
+  stopSpeakingAdvisory,
+  SUPPORTED_SPEECH_LANGUAGES,
+  type SupportedSpeechLang,
+} from "@/services/speechRecognitionService";
 import { saveOfflineRecord, getOfflineStatus } from "@/services/offlineService";
 import { useToast } from "@/components/ui/Toast";
 
@@ -53,19 +62,13 @@ interface Props {
 type RecordingState = "idle" | "recording" | "paused" | "stopped";
 
 interface VoiceSample {
-  lang: "en" | "hi" | "mr" | "ta";
+  lang: "en" | "hi" | "mr" | "ta" | "te";
   label: string;
   text: string;
   crop: string;
 }
 
 const MULTILINGUAL_VOICE_SAMPLES: VoiceSample[] = [
-  {
-    lang: "en",
-    label: "English: Cotton Whitefly",
-    text: "My cotton crop leaves are curling upwards with sticky honeydew and small white insects underneath.",
-    crop: "cotton",
-  },
   {
     lang: "hi",
     label: "हिंदी: कपास सफेद मक्खी (Whitefly)",
@@ -86,6 +89,12 @@ const MULTILINGUAL_VOICE_SAMPLES: VoiceSample[] = [
   },
   {
     lang: "en",
+    label: "English: Cotton Whitefly",
+    text: "My cotton crop leaves are curling upwards with sticky honeydew and small white insects underneath.",
+    crop: "cotton",
+  },
+  {
+    lang: "en",
     label: "English: Soybean Blight",
     text: "Soybean lower leaves have yellowing and dark brown circular spots spreading fast across the field.",
     crop: "soybean",
@@ -96,13 +105,6 @@ const MULTILINGUAL_VOICE_SAMPLES: VoiceSample[] = [
     text: "कापसाची पाने गोळा झाली असून पांढऱ्या माशीचा मोठा प्रादुर्भाव दिसत आहे.",
     crop: "cotton",
   },
-];
-
-const SPEECH_LANGUAGES = [
-  { code: "en-IN", langKey: "en", name: "English (India)", flag: "🇮🇳" },
-  { code: "hi-IN", langKey: "hi", name: "हिन्दी (Hindi)", flag: "🇮🇳" },
-  { code: "mr-IN", langKey: "mr", name: "मराठी (Marathi)", flag: "🇮🇳" },
-  { code: "ta-IN", langKey: "ta", name: "தமிழ் (Tamil)", flag: "🇮🇳" },
 ];
 
 interface VoiceAnalysisResult {
@@ -120,265 +122,190 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
   const { toast } = useToast();
 
   // Voice Language Selection (syncs initially with app language)
-  const [speechLangCode, setSpeechLangCode] = useState<string>(() => {
-    if (appLang === "hi") return "hi-IN";
-    if (appLang === "mr") return "mr-IN";
-    if (appLang === "ta") return "ta-IN";
+  const [speechLangCode, setSpeechLangCode] = useState<SupportedSpeechLang>(() => {
+    if ((appLang as string) === "hi") return "hi-IN";
+    if ((appLang as string) === "mr") return "mr-IN";
+    if ((appLang as string) === "ta") return "ta-IN";
+    if ((appLang as string) === "te") return "te-IN";
     return "en-IN";
   });
 
-  const selectedLangKey = SPEECH_LANGUAGES.find((l) => l.code === speechLangCode)?.langKey || "en";
+  const selectedLangKey =
+    SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === speechLangCode)?.langKey || "en";
 
   const [state, setState] = useState<RecordingState>("idle");
   const [transcript, setTranscript] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [selectedFieldId, setSelectedFieldId] = useState(farms[0]?.id || "");
   const [submitting, setSubmitting] = useState(false);
-  const [supported, setSupported] = useState(true);
   const [analysisResult, setAnalysisResult] = useState<VoiceAnalysisResult | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [isAssemblyAiTranscribing, setIsAssemblyAiTranscribing] = useState(false);
-  const [transcribedEngine, setTranscribedEngine] = useState<"assemblyai" | "webspeech" | "preset" | null>(null);
-
-  const recognitionRef = useRef<any>(null);
-  const accumulatedRef = useRef("");
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const micStreamRef = useRef<MediaStream | null>(null);
-  const animFrameRef = useRef<number | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (!SpeechRecognition && !navigator.mediaDevices?.getUserMedia) {
-        setSupported(false);
-      }
-    }
-  }, []);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [isTranscribingServer, setIsTranscribingServer] = useState(false);
+  const [transcribedEngine, setTranscribedEngine] = useState<"speechmatics" | "webspeech" | "gemini" | "preset" | null>(null);
+  const [isPlayingTts, setIsPlayingTts] = useState(false);
 
   // Update speech lang when user switches app language
   useEffect(() => {
-    if (appLang === "hi") setSpeechLangCode("hi-IN");
-    else if (appLang === "mr") setSpeechLangCode("mr-IN");
-    else if (appLang === "ta") setSpeechLangCode("ta-IN");
+    if ((appLang as string) === "hi") setSpeechLangCode("hi-IN");
+    else if ((appLang as string) === "mr") setSpeechLangCode("mr-IN");
+    else if ((appLang as string) === "ta") setSpeechLangCode("ta-IN");
+    else if ((appLang as string) === "te") setSpeechLangCode("te-IN");
     else setSpeechLangCode("en-IN");
   }, [appLang]);
 
-  // Audio Visualizer Setup & MediaRecorder stream
-  const startAudioVisualizer = useCallback(async () => {
-    try {
-      if (typeof window === "undefined" || !navigator.mediaDevices?.getUserMedia) return;
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      micStreamRef.current = stream;
-
-      // Setup MediaRecorder to capture audio for AssemblyAI
-      audioChunksRef.current = [];
-      try {
-        const recorder = new MediaRecorder(stream);
-        recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-        recorder.start(250); // Slice audio every 250ms
-        mediaRecorderRef.current = recorder;
-      } catch (recErr) {
-        console.warn("MediaRecorder initialization note:", recErr);
+  // Clean up TTS and audio URL on unmount
+  useEffect(() => {
+    return () => {
+      stopSpeakingAdvisory();
+      voiceManager.stopListening();
+      if (recordedAudioUrl) {
+        URL.revokeObjectURL(recordedAudioUrl);
       }
+    };
+  }, [recordedAudioUrl]);
 
-      // Setup Web Audio Analyser for live frequency levels
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      audioContextRef.current = audioCtx;
+  // Process captured audio blob through Speechmatics & Gemini
+  const processCapturedAudioBlob = useCallback(
+    async (audioBlob: Blob) => {
+      if (!audioBlob || audioBlob.size < 100) return;
+      setIsTranscribingServer(true);
 
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      analyserRef.current = analyser;
-
-      const source = audioCtx.createMediaStreamSource(stream);
-      source.connect(analyser);
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-      const updateLevel = () => {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i]!;
-        }
-        const avg = sum / dataArray.length;
-        setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
-        animFrameRef.current = requestAnimationFrame(updateLevel);
-      };
-      updateLevel();
-    } catch {
-      // Audio level meter fallback
-    }
-  }, []);
-
-  const stopAudioVisualizer = useCallback(() => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try {
-        mediaRecorderRef.current.stop();
-      } catch {}
-    }
-    if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach((t) => t.stop());
-      micStreamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close().catch(() => {});
-      audioContextRef.current = null;
-    }
-    setAudioLevel(0);
-  }, []);
-
-  // Process captured audio through AssemblyAI
-  const processWithAssemblyAI = useCallback(async () => {
-    if (audioChunksRef.current.length === 0) return;
-    setIsAssemblyAiTranscribing(true);
-
-    try {
-      const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
-      const reader = new FileReader();
-
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            resolve(reader.result);
-          } else {
-            reject(new Error("Failed to read audio blob as base64."));
-          }
-        };
-        reader.onerror = reject;
-      });
-
-      reader.readAsDataURL(audioBlob);
-      const base64Audio = await base64Promise;
-
-      const result = await transcribeVoiceWithAssemblyAI({
-        data: {
-          audioBase64: base64Audio,
-          mimeType: "audio/webm",
-          languageCode: selectedLangKey,
-        },
-      });
-
-      if (result && result.text && result.text.trim()) {
-        setTranscript(result.text.trim());
-        setTranscribedEngine("assemblyai");
-        toast("✓ Audio transcribed with AssemblyAI Neural Speech Engine!", "healthy");
-      }
-    } catch (assemblyErr) {
-      console.warn("AssemblyAI note (using browser/local speech transcript):", assemblyErr);
-    } finally {
-      setIsAssemblyAiTranscribing(false);
-    }
-  }, [selectedLangKey, toast]);
-
-  const startRecording = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-    try {
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = speechLangCode;
-
-        recognition.onresult = (event: any) => {
-          let interim = "";
-          let final = "";
-          for (let i = 0; i < event.results.length; i++) {
-            const r = event.results[i];
-            if (r && r[0]) {
-              if (r.isFinal) {
-                final += r[0].transcript + " ";
-              } else {
-                interim += r[0].transcript;
-              }
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onloadend = () => {
+            if (typeof reader.result === "string") {
+              resolve(reader.result);
+            } else {
+              reject(new Error("Failed to convert audio blob to base64."));
             }
+          };
+          reader.onerror = reject;
+        });
+
+        reader.readAsDataURL(audioBlob);
+        const base64Audio = await base64Promise;
+
+        // 1. Try Speechmatics ASR first
+        try {
+          const smResult = await transcribeVoiceWithSpeechmatics({
+            data: {
+              audioBase64: base64Audio,
+              mimeType: "audio/webm",
+              languageCode: selectedLangKey,
+            },
+          });
+
+          if (smResult && smResult.text && smResult.text.trim()) {
+            setTranscript(smResult.text.trim());
+            setTranscribedEngine("speechmatics");
+            toast(`✓ Audio transcribed via Speechmatics (${selectedLangKey.toUpperCase()})!`, "healthy");
+            return;
           }
-          if (final) accumulatedRef.current = final;
-          const liveText = (accumulatedRef.current + interim).trim();
-          setTranscript(liveText);
-          setTranscribedEngine("webspeech");
-        };
+        } catch (smErr) {
+          console.warn("Speechmatics fallback to Gemini Multimodal:", smErr);
+        }
 
-        recognition.onerror = (event: any) => {
-          console.warn("Speech recognition notice:", event.error);
-        };
+        // 2. Try Gemini Multimodal Audio fallback
+        try {
+          const gemResult = await transcribeAudioWithGeminiFn({
+            data: {
+              audioBase64: base64Audio,
+              mimeType: "audio/webm",
+              language: selectedLangKey,
+            },
+          });
 
-        recognition.onend = () => {
-          if (state === "recording") {
-            try {
-              recognition.start();
-            } catch {}
+          if (gemResult && gemResult.text && gemResult.text.trim()) {
+            setTranscript(gemResult.text.trim());
+            setTranscribedEngine("gemini");
+            toast(`✓ Audio transcribed via Gemini Multimodal (${selectedLangKey.toUpperCase()})!`, "healthy");
           }
-        };
-
-        recognitionRef.current = recognition;
-        accumulatedRef.current = "";
-        recognition.start();
+        } catch (gemErr) {
+          console.warn("Gemini audio fallback note:", gemErr);
+        }
+      } catch (err) {
+        console.warn("Server transcription note (retaining live transcript):", err);
+      } finally {
+        setIsTranscribingServer(false);
       }
+    },
+    [selectedLangKey, toast],
+  );
 
+  const startRecording = useCallback(async () => {
+    stopSpeakingAdvisory();
+    setIsPlayingTts(false);
+    setRecordedAudioUrl(null);
+
+    const success = await voiceManager.startListening(speechLangCode, {
+      onInterim: (text) => {
+        setTranscript(text);
+        setTranscribedEngine("webspeech");
+      },
+      onFinal: (text) => {
+        setTranscript(text);
+      },
+      onAudioLevel: (level) => {
+        setAudioLevel(level);
+      },
+      onError: (err) => {
+        if (err === "permission_denied") {
+          toast("Microphone access was denied. Please allow mic permissions or pick a sample below.", "watch");
+        }
+      },
+    });
+
+    if (success) {
       setState("recording");
-      startAudioVisualizer();
-      toast(`Listening with AssemblyAI & Microphone in ${SPEECH_LANGUAGES.find((l) => l.code === speechLangCode)?.name}...`, "healthy");
-    } catch (err) {
-      console.error("Recording startup failure:", err);
-      toast("Could not start microphone. Try picking one of the quick problem presets below.", "watch");
+      const langObj = SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === speechLangCode);
+      toast(`Listening in ${langObj?.nativeName || langObj?.name}... Start speaking now!`, "healthy");
     }
-  }, [speechLangCode, state, toast, startAudioVisualizer]);
+  }, [speechLangCode, toast]);
 
   const pauseRecording = useCallback(() => {
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
-    stopAudioVisualizer();
     setState("paused");
-  }, [stopAudioVisualizer]);
+  }, []);
 
   const resumeRecording = useCallback(() => {
     startRecording();
   }, [startRecording]);
 
-  const stopRecording = useCallback(() => {
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
-    stopAudioVisualizer();
+  const stopRecording = useCallback(async () => {
+    const result = await voiceManager.stopListening();
     setState("stopped");
+    setAudioLevel(0);
 
-    // Automatically refine with AssemblyAI
-    processWithAssemblyAI();
-  }, [stopAudioVisualizer, processWithAssemblyAI]);
+    if (result.audioUrl) {
+      setRecordedAudioUrl(result.audioUrl);
+    }
 
-  const resetRecording = useCallback(() => {
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
-    stopAudioVisualizer();
+    if (result.text) {
+      setTranscript(result.text);
+    }
+
+    if (result.audioBlob) {
+      processCapturedAudioBlob(result.audioBlob);
+    }
+  }, [processCapturedAudioBlob]);
+
+  const resetRecording = useCallback(async () => {
+    stopSpeakingAdvisory();
+    setIsPlayingTts(false);
+    await voiceManager.stopListening();
     setTranscript("");
-    accumulatedRef.current = "";
-    audioChunksRef.current = [];
+    setRecordedAudioUrl(null);
     setState("idle");
     setAnalysisResult(null);
     setTranscribedEngine(null);
-  }, [stopAudioVisualizer]);
+    setAudioLevel(0);
+  }, []);
 
   const handleSelectSample = (sample: VoiceSample) => {
-    try {
-      recognitionRef.current?.stop();
-    } catch {}
-    stopAudioVisualizer();
+    stopSpeakingAdvisory();
+    setIsPlayingTts(false);
+    voiceManager.stopListening();
     setState("stopped");
     setTranscript(sample.text);
     setTranscribedEngine("preset");
@@ -386,11 +313,34 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     if (sample.lang === "hi") setSpeechLangCode("hi-IN");
     else if (sample.lang === "mr") setSpeechLangCode("mr-IN");
     else if (sample.lang === "ta") setSpeechLangCode("ta-IN");
+    else if (sample.lang === "te") setSpeechLangCode("te-IN");
     else setSpeechLangCode("en-IN");
 
     const matchingField = farms.find((f) => f.cropId === sample.crop);
     if (matchingField) setSelectedFieldId(matchingField.id);
     toast(`Preset loaded: ${sample.label}. Click 'Analyze & Submit Problem' to view diagnosis.`, "healthy");
+  };
+
+  const handleToggleTts = () => {
+    if (isPlayingTts) {
+      stopSpeakingAdvisory();
+      setIsPlayingTts(false);
+      return;
+    }
+
+    if (!analysisResult) return;
+
+    const advisoryText = `${analysisResult.explanation}. ${analysisResult.next_action}`;
+    const started = speakAdvisoryAloud(advisoryText, selectedLangKey, () => {
+      setIsPlayingTts(false);
+    });
+
+    if (started) {
+      setIsPlayingTts(true);
+      toast("🔊 Reading advisory aloud...", "healthy");
+    } else {
+      toast("Text-to-speech audio reader is not supported in this browser.", "watch");
+    }
   };
 
   const handleSubmit = useCallback(async () => {
@@ -404,27 +354,34 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
 
     try {
       // 1. Run Multilingual Voice AI Analysis
-      let aiAnalysis = {
+      let aiAnalysis: {
+        crop: string;
+        symptoms: string[];
+        severity: "low" | "medium" | "high";
+        explanation: string;
+        next_action: string;
+      } = {
         crop: field?.cropId || "cotton",
         symptoms: ["Observed foliar damage", "Pest infestation"],
-        severity: "medium" as const,
+        severity: "medium",
         explanation: "Based on the spoken statement, active foliar pest/pathogen pressure is present on the crop.",
         next_action: "Inspect 10 plants across the parcel and verify undersides of leaves before applying treatment.",
       };
 
       try {
+        const cropName = field?.cropId;
         const res = await analyzeVoiceWithGemini({
           data: {
             transcript: transcript.trim(),
             language: selectedLangKey,
-            cropName: field?.cropId,
+            ...(cropName ? { cropName } : {}),
           },
         });
         if (res) {
           aiAnalysis = {
             crop: res.crop || field?.cropId || "cotton",
             symptoms: res.symptoms?.length ? res.symptoms : ["Reported symptoms"],
-            severity: res.severity || "medium",
+            severity: (res.severity || "medium") as "low" | "medium" | "high",
             explanation: res.explanation || "Verbal report processed by agricultural NLP engine.",
             next_action: res.next_action || "Inspect field and await Extension Officer advisory.",
           };
@@ -437,26 +394,30 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
       const offlineStatus = getOfflineStatus();
       let generatedCaseId = `CX-VC-${Date.now().toString().slice(-5)}`;
 
+      const farmerId = user?.id;
+      const fieldId = selectedFieldId || undefined;
+      const crop = field?.cropId;
+
       if (offlineStatus === "offline") {
         await saveOfflineRecord({
-          userId: user?.id,
+          ...(farmerId ? { userId: farmerId } : {}),
           recordType: "voice_report",
           payload: {
-            farmerId: user?.id,
-            fieldId: selectedFieldId || undefined,
             transcript: transcript.trim(),
             language: selectedLangKey,
-            crop: field?.cropId,
+            ...(farmerId ? { farmerId } : {}),
+            ...(fieldId ? { fieldId } : {}),
+            ...(crop ? { crop } : {}),
           },
         });
         toast("Saved offline! Your report will sync once connectivity returns.", "watch");
       } else {
         const result = await submitVoiceReport({
-          farmerId: user?.id,
-          fieldId: selectedFieldId || undefined,
           transcript: transcript.trim(),
           language: selectedLangKey,
-          crop: field?.cropId,
+          ...(farmerId ? { farmerId } : {}),
+          ...(fieldId ? { fieldId } : {}),
+          ...(crop ? { crop } : {}),
         });
         if (result?.caseId) {
           generatedCaseId = result.caseId;
@@ -488,17 +449,17 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
           <div>
             <div className="flex items-center gap-2">
               <span className="text-caption text-forest font-bold uppercase tracking-wider">
-                Rural Voice Assistance · AssemblyAI + Gemini
+                Rural Voice Assistance · Speechmatics + Gemini Voice AI
               </span>
               <span className="text-[0.625rem] font-mono bg-forest/15 text-forest font-bold px-2 py-0.5 rounded">
-                AssemblyAI Active
+                Speech-to-Action Active
               </span>
             </div>
             <h3 className="font-expanded text-lg md:text-xl font-bold text-ink mt-0.5">
               Call &amp; Speak Your Crop Problem
             </h3>
             <p className="text-xs text-ink-2 mt-0.5 max-w-xl">
-              Powered by <strong>AssemblyAI speech recognition</strong>. Speak in <strong>हिन्दी</strong>, <strong>मराठी</strong>, <strong>தமிழ்</strong>, or <strong>English</strong> to receive instant AI diagnosis and actionable IPM recommendations.
+              No typing needed. Speak in <strong>हिन्दी</strong>, <strong>मराठी</strong>, <strong>தமிழ்</strong>, <strong>తెలుగు</strong>, or <strong>English</strong> to receive instant AI diagnosis and listen to recommended actions read aloud.
             </p>
           </div>
         </div>
@@ -518,10 +479,10 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
         <div className="space-y-1">
           <label className="text-caption font-semibold text-ink flex items-center gap-1.5">
             <Globe className="size-3.5 text-forest" />
-            <span>Voice Language / भाषा / भाषा / மொழி:</span>
+            <span>Voice Language / भाषा / भाषा / மொழி / భాష:</span>
           </label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-            {SPEECH_LANGUAGES.map((sl) => (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+            {SUPPORTED_SPEECH_LANGUAGES.map((sl) => (
               <button
                 key={sl.code}
                 type="button"
@@ -533,7 +494,7 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
                     : "border-line bg-paper text-ink hover:bg-surface-2",
                 )}
               >
-                <span>{sl.name}</span>
+                <span>{sl.nativeName}</span>
               </button>
             ))}
           </div>
@@ -569,7 +530,7 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
               className="inline-flex min-h-[52px] items-center gap-3 bg-forest px-7 text-sm md:text-base font-bold text-surface hover:bg-[#0e2b20] transition-colors shadow-sm rounded"
             >
               <Mic className="size-5 animate-pulse" />
-              🎙 Speak Your Problem ({SPEECH_LANGUAGES.find((l) => l.code === speechLangCode)?.name.split(" ")[0]})
+              🎙 Speak Your Problem ({SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === speechLangCode)?.nativeName})
             </button>
           )}
 
@@ -587,15 +548,15 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
                 onClick={stopRecording}
                 className="inline-flex min-h-[48px] items-center gap-2 bg-alert px-5 text-xs font-bold text-surface hover:bg-alert/90 transition-colors rounded shadow"
               >
-                <Square className="size-4" /> Stop &amp; Transcribe (AssemblyAI)
+                <Square className="size-4" /> Stop &amp; Review
               </button>
 
-              {/* Real-time Audio Level Meter */}
+              {/* Real-time Audio Level Waveform Meter */}
               <div className="flex items-center gap-2.5 border border-alert/30 bg-alert/10 px-3.5 py-2 rounded text-xs text-alert font-bold">
                 <span className="size-2.5 rounded-full bg-alert animate-ping" />
                 <span>Microphone Active · Listening...</span>
                 <div className="flex items-center gap-0.5 h-4 ml-1">
-                  {[20, 45, 75, 95, 60, 30].map((h, i) => (
+                  {[20, 50, 85, 100, 70, 35].map((h, i) => (
                     <span
                       key={i}
                       className="w-1 bg-alert rounded-full transition-all duration-75"
@@ -638,20 +599,20 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
               >
                 <RotateCcw className="size-3.5" /> Speak Again / Reset
               </button>
-              {audioChunksRef.current.length > 0 && (
-                <button
-                  type="button"
-                  onClick={processWithAssemblyAI}
-                  disabled={isAssemblyAiTranscribing}
-                  className="inline-flex min-h-[44px] items-center gap-2 bg-forest/10 border border-forest text-forest px-4 text-xs font-bold hover:bg-forest/20 transition-colors rounded"
-                >
-                  <RefreshCw className={cx("size-3.5", isAssemblyAiTranscribing && "animate-spin")} />
-                  {isAssemblyAiTranscribing ? "Transcribing with AssemblyAI…" : "Re-transcribe Audio (AssemblyAI)"}
-                </button>
-              )}
             </div>
           )}
         </div>
+
+        {/* Audio Recording Replay Player */}
+        {recordedAudioUrl && (
+          <div className="border border-line bg-surface-2 p-3 rounded flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-ink font-semibold">
+              <Volume2 className="size-4 text-forest" />
+              <span>Listen back to your recorded voice note:</span>
+            </div>
+            <audio src={recordedAudioUrl} controls className="h-8 max-w-xs" />
+          </div>
+        )}
 
         {/* 1-Click Multilingual Problem Presets */}
         <div className="border border-line bg-surface-2 p-3.5 rounded space-y-2">
@@ -676,19 +637,24 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
         </div>
 
         {/* Transcript Box */}
-        {(transcript || state === "recording" || state === "stopped" || isAssemblyAiTranscribing || !supported) && (
+        {(transcript || state === "recording" || state === "stopped" || isTranscribingServer) && (
           <div className="space-y-2 border border-line bg-paper p-4 rounded">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <label className="text-caption font-semibold text-ink">Spoken Statement (Audio Transcript):</label>
-                {transcribedEngine === "assemblyai" && (
+                {transcribedEngine === "speechmatics" && (
                   <span className="font-mono text-[0.6875rem] text-forest font-bold bg-forest/15 px-2 py-0.5 rounded flex items-center gap-1">
-                    <Cpu className="size-3" /> AssemblyAI High-Precision
+                    <Cpu className="size-3" /> Speechmatics Universal ASR
                   </span>
                 )}
-                {isAssemblyAiTranscribing && (
+                {transcribedEngine === "gemini" && (
+                  <span className="font-mono text-[0.6875rem] text-forest font-bold bg-forest/15 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Sparkles className="size-3" /> Gemini Multimodal Audio
+                  </span>
+                )}
+                {isTranscribingServer && (
                   <span className="font-mono text-[0.6875rem] text-water font-bold bg-water/15 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
-                    <RefreshCw className="size-3 animate-spin" /> AssemblyAI Processing…
+                    <RefreshCw className="size-3 animate-spin" /> Enhancing Transcription…
                   </span>
                 )}
               </div>
@@ -755,9 +721,24 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
                 AI Agricultural Diagnosis &amp; Recommended Steps
               </h4>
             </div>
-            <span className="font-mono text-xs font-bold bg-forest text-surface px-3 py-1 rounded">
-              Case ID: {analysisResult.caseId}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleTts}
+                className={cx(
+                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold transition-all shadow-sm",
+                  isPlayingTts
+                    ? "bg-alert text-surface animate-pulse"
+                    : "bg-forest text-surface hover:bg-[#0e2b20]",
+                )}
+              >
+                {isPlayingTts ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                <span>{isPlayingTts ? "Stop Reading" : "🔊 Listen Aloud"}</span>
+              </button>
+              <span className="font-mono text-xs font-bold bg-forest text-surface px-3 py-1.5 rounded">
+                Case: {analysisResult.caseId}
+              </span>
+            </div>
           </div>
 
           {/* Identified Crop & Severity */}
@@ -806,19 +787,73 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
           </div>
 
           {/* Recommended Next Steps & IPM Action Plan in Selected Language */}
-          <div className="border border-forest/30 bg-forest/5 p-4 rounded space-y-2 text-xs">
-            <span className="font-bold text-forest text-sm flex items-center gap-1.5">
-              <ShieldCheck className="size-4 text-forest" /> Recommended Immediate Actions for You:
-            </span>
-            <p className="text-ink font-bold leading-relaxed text-[0.875rem]">
-              {analysisResult.next_action}
-            </p>
-            <div className="border-t border-forest/20 pt-2 space-y-1 text-ink-2">
-              <div>1. <strong>Cultural Control:</strong> Inspect 10 plants in a zig-zag pattern across the field; remove severely infested leaves.</div>
-              <div>2. <strong>Biological Control:</strong> Spray 5% Neem Seed Kernel Extract (NSKE) or bio-pesticide in the cool morning/evening hours.</div>
-              <div>3. <strong>Extension Officer Follow-up:</strong> An Agriculture Extension Officer has received this transcript and will review before recommending synthetic chemicals.</div>
-            </div>
-          </div>
+          {(() => {
+            const ipmGuidance = {
+              hi: {
+                title: "आपके लिए अनुशंसित त्वरित कदम (IPM योजना):",
+                steps: [
+                  "1. सांस्कृतिक नियंत्रण: खेत में ज़िग-ज़ैग तरीके से 10 पौधों का निरीक्षण करें; अत्यधिक प्रभावित पत्तियों को हटा दें।",
+                  "2. जैविक नियंत्रण: सुबह या शाम के ठंडे समय में 5% नीम के बीज का काढ़ा (NSKE) या जैविक कीटनाशक का छिड़काव करें।",
+                  "3. कृषि अधिकारी फॉलो-अप: कृषि विस्तार अधिकारी को यह रिपोर्ट प्राप्त हो गई है और वे रासायनिक कीटनाशक से पहले समीक्षा करेंगे।",
+                ],
+              },
+              mr: {
+                title: "तुमच्यासाठी त्वरित शिफारस केलेल्या कृती (IPM योजना):",
+                steps: [
+                  "1. मशागती पद्धती: शेतात झिग-झॅग पद्धतीने १० झाडांची पाहणी करा; जास्त प्रादुर्भाव झालेली पाने काढून नष्ट करा.",
+                  "2. सेंद्रिय व जैविक नियंत्रण: सकाळच्या किंवा संध्याकाळच्या थंड वेळेत ५% निंबोळी अर्क (NSKE) किंवा जैविक बुरशीनाशकाची फवारणी करा.",
+                  "3. कृषी अधिकारी पाठपुरावा: कृषी विस्तार अधिकाऱ्यांपर्यंत हा अहवाल पोहोचला असून रासायनिक फवारणीपूर्वी ते तपासणी करतील.",
+                ],
+              },
+              ta: {
+                title: "உங்களுக்கான உடனடி பரிந்துரைக்கப்பட்ட நடவடிக்கைகள் (IPM திட்டம்):",
+                steps: [
+                  "1. பயிர் பாதுகாப்பு முறை: வயலில் 10 செடிகளை குறுக்கு மறுக்காக ஆய்வு செய்யவும்; பாதிக்கப்பட்ட இலைகளை அகற்றவும்.",
+                  "2. உயிரியல் கட்டுப்பாடு: காலை அல்லது மாலை வேளையில் 5% வேப்பங்கொட்டை சாறு (NSKE) அல்லது உயிரி பூச்சிக்கொல்லி தெளிக்கவும்.",
+                  "3. வேளாண் அலுவலர் பரிந்துரை: இந்த அறிக்கை வேளாண் விரிவாக்க அலுவலருக்கு அனுப்பப்பட்டுள்ளது, ரசாயன மருந்துகளுக்கு முன் அவர்கள் ஆய்வு செய்வர்.",
+                ],
+              },
+              te: {
+                title: "మీ కోసం సిఫార్సు చేయబడిన తక్షణ చర్యలు (IPM ప్రణాళిక):",
+                steps: [
+                  "1. సాగు పద్ధతి: పొలంలో 10 మొక్కలను పరిశీలించండి; తీవ్రంగా దెబ్బతిన్న ఆకులను తొలగించండి.",
+                  "2. జీవ నియంత్రణ: ఉదయం లేదా సాయంత్రం వేళల్లో 5% వేప గింజల కషాయం (NSKE) పిచికారీ చేయండి.",
+                  "3. వ్యవసాయ అధికారి సమీక్ష: వ్యవసాయ అధికారి తనిఖీ చేసిన తర్వాత తగిన మందులను సూచిస్తారు.",
+                ],
+              },
+              en: {
+                title: "Recommended Immediate Actions for You (IPM Action Plan):",
+                steps: [
+                  "1. Cultural Control: Inspect 10 plants in a zig-zag pattern across the field; remove severely infested leaves.",
+                  "2. Biological Control: Spray 5% Neem Seed Kernel Extract (NSKE) or bio-pesticide in the cool morning/evening hours.",
+                  "3. Extension Officer Follow-up: An Agriculture Extension Officer has received this transcript and will review before recommending synthetic chemicals.",
+                ],
+              },
+            }[selectedLangKey] || {
+              title: "Recommended Immediate Actions for You:",
+              steps: [
+                "1. Cultural Control: Inspect 10 plants in a zig-zag pattern across the field; remove severely infested leaves.",
+                "2. Biological Control: Spray 5% Neem Seed Kernel Extract (NSKE) or bio-pesticide in the cool morning/evening hours.",
+                "3. Extension Officer Follow-up: An Agriculture Extension Officer has received this transcript and will review before recommending synthetic chemicals.",
+              ],
+            };
+
+            return (
+              <div className="border border-forest/30 bg-forest/5 p-4 rounded space-y-2 text-xs">
+                <span className="font-bold text-forest text-sm flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-forest" /> {ipmGuidance.title}
+                </span>
+                <p className="text-ink font-bold leading-relaxed text-[0.875rem]">
+                  {analysisResult.next_action}
+                </p>
+                <div className="border-t border-forest/20 pt-2 space-y-1 text-ink-2">
+                  {ipmGuidance.steps.map((st, i) => (
+                    <div key={i}>{st}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Reset & Call Officer Actions */}
           <div className="flex flex-wrap items-center gap-3 pt-2">
