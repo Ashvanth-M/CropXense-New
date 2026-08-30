@@ -231,6 +231,25 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
 export function useT() {
   const ctx = useContext(I18nContext);
-  if (!ctx) throw new Error("useT must be used inside <I18nProvider>");
+  if (!ctx) {
+    // Safe fallback to default English translations if rendered outside provider
+    return {
+      lang: "en" as SupportedLang,
+      setLang: () => {},
+      cycle: () => {},
+      t: (k: TranslationKey) => en[k] ?? k,
+      tCrop: (id: string) => id,
+      tStage: (id: string) => id,
+      tDistrict: (id: string) => id,
+      tSymptom: (id: string) => id,
+      tRisk: (id: string) => id,
+      tStatus: (id: string) => id,
+      tHealth: (id: string) => id,
+      tChannel: (id: string) => id,
+      tRole: (id: string) => id,
+      tRoleDesc: (id: string) => id,
+      tRoleDashboard: (id: string) => id,
+    };
+  }
   return ctx;
 }
