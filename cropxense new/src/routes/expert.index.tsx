@@ -22,6 +22,7 @@ import {
 import { Skeleton } from "@/components/ui/Card";
 import { StatusChip } from "@/components/ui/Status";
 import { SpecimenViewer } from "@/components/expert/SpecimenViewer";
+import { CaseTimeline } from "@/components/app/CaseTimeline";
 import { useAsync } from "@/hooks/useAsync";
 import {
   getAssessments,
@@ -344,6 +345,11 @@ function ExpertReviewsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="num font-mono text-[0.8125rem] font-bold text-forest">{activeCase.id}</span>
                     <StatusChip status="watch" />
+                    {activeCase.source && (
+                      <span className="text-[0.6875rem] font-bold uppercase px-2 py-0.5 border border-forest/30 bg-forest/10 text-forest">
+                        {activeCase.source === "voice_report" ? "🎙 Voice Report" : activeCase.source === "assisted_report" ? "📋 Officer Assisted" : "📷 Smartphone Scan"}
+                      </span>
+                    )}
                     <span className="text-[0.75rem] text-ink-2">{activeCase.detectedAt}</span>
                   </div>
 
@@ -359,6 +365,33 @@ function ExpertReviewsPage() {
                   <div className="text-right">
                     <span className="text-caption text-ink-2">{t("field.confidence")}</span>
                     <p className="num text-[1.25rem] font-bold text-forest">{activeCase.confidence}%</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* AI DECISION SUPPORT PANEL (Requirement: Human validation remains with expert) */}
+              <div className="border border-forest/20 bg-forest/5 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-forest flex items-center gap-1.5">
+                    <FlaskConical className="size-4" />
+                    AI Decision Support vs Plant Pathology Verification
+                  </span>
+                  <span className="text-[0.65rem] px-2 py-0.5 bg-paper border border-line text-ink-2 font-mono">
+                    ISO-Compliant Agronomic Triage
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="border border-line bg-paper p-2.5">
+                    <span className="font-semibold text-ink block mb-0.5">🤖 AI Machine Observation</span>
+                    <p className="text-ink-2">
+                      {activeCase.evidence?.map((e) => e.label).join(", ") || activeCase.notes || "Multi-spectral pixel classification & symptom correlation."}
+                    </p>
+                  </div>
+                  <div className="border border-forest/30 bg-paper p-2.5">
+                    <span className="font-semibold text-forest block mb-0.5">🔬 Pathologist Duty</span>
+                    <p className="text-ink-2">
+                      AI provides initial triage and candidate matching. Final scientific validation and pesticide advisory clearance remains with certified plant protection experts.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -509,6 +542,14 @@ function ExpertReviewsPage() {
                   placeholder={t("expert.notesPlaceholder")}
                   className="w-full border border-line bg-paper p-3 text-[0.8125rem] text-ink outline-none focus:border-forest resize-none"
                 />
+              </div>
+
+              {/* Case Life-Cycle Timeline */}
+              <div className="space-y-2 border-t border-line pt-4">
+                <span className="text-caption text-forest">Case Progression Timeline</span>
+                <div className="bg-paper border border-line p-3">
+                  <CaseTimeline caseId={activeCase.id} compact />
+                </div>
               </div>
 
               {/* Action Buttons Toolbar */}

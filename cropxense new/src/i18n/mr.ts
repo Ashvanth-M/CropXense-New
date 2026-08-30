@@ -604,4 +604,20 @@ export const mr: Record<keyof typeof en, string> = {
   "expertise.entomology": "कृषी कीटकशास्त्र (कीड आणि वाहक)",
   "expertise.agronomy": "शस्त्रशास्त्र आणि पीक शरीरक्रियाविज्ञान",
   "expertise.soil": "माती आणि पर्यावरण रसायनशास्त्र",
+
+  /* ── Round 2 ── */
+  "nav.voiceReport": "आवाज अहवाल",
+  "nav.schemes": "सरकारी योजना",
+  "nav.assistedReports": "मदत अहवाल",
+  "voice.speakProblem": "कॉल करा आणि पीक समस्या सांगा",
+  "voice.subtext": "स्मार्टफोन ज्ञानाची आवश्यकता नाही. आपल्या शेतात काय घडत आहे ते सांगा.",
+  "voice.startRecording": "🎙 आपली समस्या बोला",
+  "voice.callSupport": "📞 कृषी सहाय्याला कॉल करा",
+  "schemes.title": "शेतकरी योजना व लाभ",
+  "schemes.subtitle": "सरकारी कृषी योजना शोधा आणि आपली पात्रता तपासा.",
+  "offline.statusOnline": "ऑनलाइन",
+  "offline.statusOffline": "ऑफलाइन — डेटा स्थानिक पातळीवर जतन केला",
+  "offline.statusSyncing": "सिंक होत आहे...",
+  "offline.statusSynced": "यशस्वीरित्या सिंक झाले",
+  "abnormality.title": "माझ्या पिकात काही असामान्य आहे का?",
 };

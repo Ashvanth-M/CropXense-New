@@ -8,7 +8,7 @@
  * Gemini Vision API, or a custom model endpoint).
  */
 
-import type { ImageValidation, CropStage, RiskLevel, RiskAssessment } from "@/types";
+import type { ImageValidation, CropStage, RiskLevel, RiskAssessment, GeminiAnalysisResult } from "@/types";
 import { CROPS, DISEASES, PESTS } from "@/data/reference";
 import type { Disease, Pest } from "@/types";
 
@@ -410,3 +410,79 @@ export function calculateFarmHealthScore(
     label,
   };
 }
+
+/* ─────────────────────────── Gemini + Risk Engine Fusion ─────────────────────────── */
+
+export interface UnifiedAIAssessment {
+  primaryDiagnosis: FullDiagnosis | null;
+  geminiResult: GeminiAnalysisResult | null;
+  consensus: "concur" | "differ" | "complementary" | "single_source";
+  combinedConfidence: number;
+  aiObservationSummary: string;
+  scientificRiskSummary: string;
+}
+
+/**
+ * Fuse Gemini AI visual reasoning with CropXense deterministic agronomic risk engine.
+ * Clearly separates "AI Observation" from "Agronomic Risk Assessment".
+ */
+export function combineGeminiWithRiskEngine(
+  gemini: GeminiAnalysisResult | null,
+  riskDiagnosis: FullDiagnosis | null,
+): UnifiedAIAssessment {
+  if (!gemini && !riskDiagnosis) {
+    return {
+      primaryDiagnosis: null,
+      geminiResult: null,
+      consensus: "single_source",
+      combinedConfidence: 0,
+      aiObservationSummary: "No analysis available.",
+      scientificRiskSummary: "Awaiting field data.",
+    };
+  }
+
+  if (gemini && !riskDiagnosis) {
+    return {
+      primaryDiagnosis: null,
+      geminiResult: gemini,
+      consensus: "single_source",
+      combinedConfidence: gemini.confidence,
+      aiObservationSummary: gemini.explanation || gemini.raw_visible_evidence,
+      scientificRiskSummary: "Agronomic risk engine calculation pending.",
+    };
+  }
+
+  if (!gemini && riskDiagnosis) {
+    return {
+      primaryDiagnosis: riskDiagnosis,
+      geminiResult: null,
+      consensus: "single_source",
+      combinedConfidence: riskDiagnosis.confidence,
+      aiObservationSummary: riskDiagnosis.explanations.join(". "),
+      scientificRiskSummary: `Overall Risk: ${riskDiagnosis.riskAssessment.overallRisk.toUpperCase()} — ${riskDiagnosis.riskAssessment.drivers.join(", ")}`,
+    };
+  }
+
+  // Both available: check consensus
+  const geminiTopIssue = gemini!.possible_issues[0]?.name?.toLowerCase() || "";
+  const riskThreatName = riskDiagnosis!.threatName.toLowerCase();
+
+  const isMatch = geminiTopIssue.includes(riskThreatName) || riskThreatName.includes(geminiTopIssue) ||
+    gemini!.symptoms.some((s) => riskDiagnosis!.explanations.some((e) => e.toLowerCase().includes(s.toLowerCase())));
+
+  const consensus = isMatch ? "concur" : "complementary";
+  const combinedConfidence = Math.min(
+    98,
+    Math.round(riskDiagnosis!.confidence * 0.6 + gemini!.confidence * 0.4 + (isMatch ? 5 : 0)),
+  );
+
+  return {
+    primaryDiagnosis: riskDiagnosis,
+    geminiResult: gemini,
+    consensus,
+    combinedConfidence,
+    aiObservationSummary: `Gemini Observation: ${gemini!.explanation} (${gemini!.confidence}% confidence). Visible: ${gemini!.raw_visible_evidence || gemini!.symptoms.join(", ")}`,
+    scientificRiskSummary: `Risk Engine: Suspected ${riskDiagnosis!.threatName} with ${riskDiagnosis!.riskAssessment.overallRisk} risk level. Key drivers: ${riskDiagnosis!.riskAssessment.drivers.join("; ")}`,
+  };
+}
+

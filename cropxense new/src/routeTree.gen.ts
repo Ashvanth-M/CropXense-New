@@ -22,6 +22,7 @@ import { Route as AuthSignupRouteImport } from './routes/_auth.signup'
 import { Route as PublicIndexRouteImport } from './routes/_public.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppAdvisoriesRouteImport } from './routes/app.advisories'
+import { Route as AppAssistedReportsRouteImport } from './routes/app.assisted-reports'
 import { Route as AppCropHealthRouteImport } from './routes/app.crop-health'
 import { Route as AppFieldsRouteImport } from './routes/app.fields'
 import { Route as AppForecastRouteImport } from './routes/app.forecast'
@@ -45,6 +46,8 @@ import { Route as FarmerForecastRouteImport } from './routes/farmer.forecast'
 import { Route as FarmerPestsRouteImport } from './routes/farmer.pests'
 import { Route as FarmerProfileRouteImport } from './routes/farmer.profile'
 import { Route as FarmerScanRouteImport } from './routes/farmer.scan'
+import { Route as FarmerSchemesRouteImport } from './routes/farmer.schemes'
+import { Route as FarmerVoiceReportRouteImport } from './routes/farmer.voice-report'
 import { Route as AppFarmsIdRouteImport } from './routes/app.farms.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -108,6 +111,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppAdvisoriesRoute = AppAdvisoriesRouteImport.update({
   id: '/advisories',
   path: '/advisories',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAssistedReportsRoute = AppAssistedReportsRouteImport.update({
+  id: '/assisted-reports',
+  path: '/assisted-reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCropHealthRoute = AppCropHealthRouteImport.update({
@@ -225,6 +233,16 @@ const FarmerScanRoute = FarmerScanRouteImport.update({
   path: '/scan',
   getParentRoute: () => FarmerRoute,
 } as any)
+const FarmerSchemesRoute = FarmerSchemesRouteImport.update({
+  id: '/schemes',
+  path: '/schemes',
+  getParentRoute: () => FarmerRoute,
+} as any)
+const FarmerVoiceReportRoute = FarmerVoiceReportRouteImport.update({
+  id: '/voice-report',
+  path: '/voice-report',
+  getParentRoute: () => FarmerRoute,
+} as any)
 const AppFarmsIdRoute = AppFarmsIdRouteImport.update({
   id: '/farms/$id',
   path: '/farms/$id',
@@ -242,6 +260,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/app/advisories': typeof AppAdvisoriesRoute
+  '/app/assisted-reports': typeof AppAssistedReportsRoute
   '/app/crop-health': typeof AppCropHealthRoute
   '/app/fields': typeof AppFieldsRoute
   '/app/forecast': typeof AppForecastRoute
@@ -263,6 +282,8 @@ export interface FileRoutesByFullPath {
   '/farmer/pests': typeof FarmerPestsRoute
   '/farmer/profile': typeof FarmerProfileRoute
   '/farmer/scan': typeof FarmerScanRoute
+  '/farmer/schemes': typeof FarmerSchemesRoute
+  '/farmer/voice-report': typeof FarmerVoiceReportRoute
   '/app/': typeof AppIndexRoute
   '/expert/': typeof ExpertIndexRoute
   '/farmer/': typeof FarmerIndexRoute
@@ -276,6 +297,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/app/advisories': typeof AppAdvisoriesRoute
+  '/app/assisted-reports': typeof AppAssistedReportsRoute
   '/app/crop-health': typeof AppCropHealthRoute
   '/app/fields': typeof AppFieldsRoute
   '/app/forecast': typeof AppForecastRoute
@@ -297,6 +319,8 @@ export interface FileRoutesByTo {
   '/farmer/pests': typeof FarmerPestsRoute
   '/farmer/profile': typeof FarmerProfileRoute
   '/farmer/scan': typeof FarmerScanRoute
+  '/farmer/schemes': typeof FarmerSchemesRoute
+  '/farmer/voice-report': typeof FarmerVoiceReportRoute
   '/app': typeof AppIndexRoute
   '/expert': typeof ExpertIndexRoute
   '/farmer': typeof FarmerIndexRoute
@@ -315,6 +339,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/app/advisories': typeof AppAdvisoriesRoute
+  '/app/assisted-reports': typeof AppAssistedReportsRoute
   '/app/crop-health': typeof AppCropHealthRoute
   '/app/fields': typeof AppFieldsRoute
   '/app/forecast': typeof AppForecastRoute
@@ -336,6 +361,8 @@ export interface FileRoutesById {
   '/farmer/pests': typeof FarmerPestsRoute
   '/farmer/profile': typeof FarmerProfileRoute
   '/farmer/scan': typeof FarmerScanRoute
+  '/farmer/schemes': typeof FarmerSchemesRoute
+  '/farmer/voice-report': typeof FarmerVoiceReportRoute
   '/_public/': typeof PublicIndexRoute
   '/app/': typeof AppIndexRoute
   '/expert/': typeof ExpertIndexRoute
@@ -355,6 +382,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/app/advisories'
+    | '/app/assisted-reports'
     | '/app/crop-health'
     | '/app/fields'
     | '/app/forecast'
@@ -376,6 +404,8 @@ export interface FileRouteTypes {
     | '/farmer/pests'
     | '/farmer/profile'
     | '/farmer/scan'
+    | '/farmer/schemes'
+    | '/farmer/voice-report'
     | '/app/'
     | '/expert/'
     | '/farmer/'
@@ -389,6 +419,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/app/advisories'
+    | '/app/assisted-reports'
     | '/app/crop-health'
     | '/app/fields'
     | '/app/forecast'
@@ -410,6 +441,8 @@ export interface FileRouteTypes {
     | '/farmer/pests'
     | '/farmer/profile'
     | '/farmer/scan'
+    | '/farmer/schemes'
+    | '/farmer/voice-report'
     | '/app'
     | '/expert'
     | '/farmer'
@@ -427,6 +460,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/signup'
     | '/app/advisories'
+    | '/app/assisted-reports'
     | '/app/crop-health'
     | '/app/fields'
     | '/app/forecast'
@@ -448,6 +482,8 @@ export interface FileRouteTypes {
     | '/farmer/pests'
     | '/farmer/profile'
     | '/farmer/scan'
+    | '/farmer/schemes'
+    | '/farmer/voice-report'
     | '/_public/'
     | '/app/'
     | '/expert/'
@@ -556,6 +592,13 @@ declare module '@tanstack/react-router' {
       path: '/advisories'
       fullPath: '/app/advisories'
       preLoaderRoute: typeof AppAdvisoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/assisted-reports': {
+      id: '/app/assisted-reports'
+      path: '/assisted-reports'
+      fullPath: '/app/assisted-reports'
+      preLoaderRoute: typeof AppAssistedReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/crop-health': {
@@ -719,6 +762,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FarmerScanRouteImport
       parentRoute: typeof FarmerRoute
     }
+    '/farmer/schemes': {
+      id: '/farmer/schemes'
+      path: '/schemes'
+      fullPath: '/farmer/schemes'
+      preLoaderRoute: typeof FarmerSchemesRouteImport
+      parentRoute: typeof FarmerRoute
+    }
+    '/farmer/voice-report': {
+      id: '/farmer/voice-report'
+      path: '/voice-report'
+      fullPath: '/farmer/voice-report'
+      preLoaderRoute: typeof FarmerVoiceReportRouteImport
+      parentRoute: typeof FarmerRoute
+    }
     '/app/farms/$id': {
       id: '/app/farms/$id'
       path: '/farms/$id'
@@ -756,6 +813,7 @@ const PublicRouteWithChildren =
 
 interface AppRouteChildren {
   AppAdvisoriesRoute: typeof AppAdvisoriesRoute
+  AppAssistedReportsRoute: typeof AppAssistedReportsRoute
   AppCropHealthRoute: typeof AppCropHealthRoute
   AppFieldsRoute: typeof AppFieldsRoute
   AppForecastRoute: typeof AppForecastRoute
@@ -770,6 +828,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAdvisoriesRoute: AppAdvisoriesRoute,
+  AppAssistedReportsRoute: AppAssistedReportsRoute,
   AppCropHealthRoute: AppCropHealthRoute,
   AppFieldsRoute: AppFieldsRoute,
   AppForecastRoute: AppForecastRoute,
@@ -813,6 +872,8 @@ interface FarmerRouteChildren {
   FarmerPestsRoute: typeof FarmerPestsRoute
   FarmerProfileRoute: typeof FarmerProfileRoute
   FarmerScanRoute: typeof FarmerScanRoute
+  FarmerSchemesRoute: typeof FarmerSchemesRoute
+  FarmerVoiceReportRoute: typeof FarmerVoiceReportRoute
   FarmerIndexRoute: typeof FarmerIndexRoute
 }
 
@@ -826,6 +887,8 @@ const FarmerRouteChildren: FarmerRouteChildren = {
   FarmerPestsRoute: FarmerPestsRoute,
   FarmerProfileRoute: FarmerProfileRoute,
   FarmerScanRoute: FarmerScanRoute,
+  FarmerSchemesRoute: FarmerSchemesRoute,
+  FarmerVoiceReportRoute: FarmerVoiceReportRoute,
   FarmerIndexRoute: FarmerIndexRoute,
 }
 

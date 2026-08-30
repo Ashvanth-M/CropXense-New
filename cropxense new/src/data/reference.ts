@@ -140,5 +140,5 @@ export const VILLAGES: Record<string, string[]> = {
 };
 export const FARM_PREFIX = ["Shree Ganesh", "Sant Tukaram", "Jai Kisan", "Shivneri", "Vitthal", "Krushi Vikas", "Panduranga", "Gomai", "Jijau", "Sahyadri", "Warkari", "Shree Datta", "Annapurna", "Bharat Krishi", "Swami Vivekananda", "Green Valley"];
 export const FARM_SUFFIX = ["Farm", "Sheti", "Krushi Kendra", "Mala", "Baug", "Fields", "Agri"];
-export const OWNER_FIRST = ["Ramesh", "Sunita", "Vitthal", "Anil", "Manda", "Sanjay", "Pralhad", "Kavita", "Namdev", "Shobha", "Dnyaneshwar", "Ashwini", "Harpreet", "Rajesh", "Gita", "Suresh", "Lakshmi", "Mohan", "Priya", "Vikram"];
-export const OWNER_LAST = ["Deshmukh", "Pawar", "Wankhede", "Ingle", "Patil", "Gaikwad", "Thorat", "Bhoyar", "Kale", "Shinde", "Rathod", "Sarode", "Singh", "Sharma", "Reddy", "Nair", "Das", "Rao", "Patel", "Kumar"];
+export const OWNER_FIRST = ["Ramrao", "Sunita", "Vitthal", "Anil", "Manda", "Sanjay", "Pralhad", "Kavita", "Namdev", "Shobha", "Dnyaneshwar", "Ashwini", "Harpreet", "Rajesh", "Gita", "Suresh", "Lakshmi", "Mohan", "Priya", "Vikram"];
+export const OWNER_LAST = ["Deshmukh", "Pawar", "Wankhede", "Ingle", "Patil", "Gaikwad", "Thorat", "Bhoyar", "Kale", "Shinde", "Rathod", "Sarode", "Singh", "Sharma", "Reddy", "Nair", "Das", "Rao", "Patel", "Chavan"];

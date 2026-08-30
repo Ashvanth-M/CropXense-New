@@ -41,6 +41,12 @@ import { useAuth } from "@/auth/AuthContext";
 import { useT } from "@/i18n";
 import { cx } from "@/lib/cx";
 import type { Farm, CropHealthAssessment, Advisory, FollowUp } from "@/types";
+import { VoiceReportSection } from "@/components/farmer/VoiceReportSection";
+import { CropAbnormalitySection } from "@/components/farmer/CropAbnormalitySection";
+import { FarmerSchemesSection } from "@/components/farmer/FarmerSchemesSection";
+import { OfflineStatusBanner } from "@/components/farmer/OfflineStatusBanner";
+import { NoInternetHelpSection } from "@/components/farmer/NoInternetHelpSection";
+import { initOfflineListeners } from "@/services/offlineService";
 
 export const Route = createFileRoute("/farmer/")({
   head: () => ({
@@ -95,6 +101,7 @@ function FarmerOverviewPage() {
 
   useEffect(() => {
     loadData();
+    initOfflineListeners();
     const unsub = subscribe(() => {
       loadData();
     });
@@ -696,6 +703,31 @@ function FarmerOverviewPage() {
           </section>
         </>
       )}
+
+      {/* =========================================================================
+          ROUND 2: OFFLINE STATUS BANNER
+      ========================================================================= */}
+      <OfflineStatusBanner />
+
+      {/* =========================================================================
+          ROUND 2: CALL & SPEAK YOUR PROBLEM
+      ========================================================================= */}
+      <VoiceReportSection farms={farmList} onCaseCreated={() => loadData()} />
+
+      {/* =========================================================================
+          ROUND 2: IS SOMETHING UNUSUAL IN MY CROP?
+      ========================================================================= */}
+      <CropAbnormalitySection farms={farmList} />
+
+      {/* =========================================================================
+          ROUND 2: FARMER SCHEMES & BENEFITS
+      ========================================================================= */}
+      <FarmerSchemesSection farms={farmList} compact />
+
+      {/* =========================================================================
+          ROUND 2: NO INTERNET HELP
+      ========================================================================= */}
+      <NoInternetHelpSection />
     </div>
   );
 }

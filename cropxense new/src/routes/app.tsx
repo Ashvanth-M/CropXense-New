@@ -18,6 +18,7 @@ import {
   AlertCircle,
   FileBarChart,
   CheckCircle2,
+  UserPlus,
 } from "lucide-react";
 import { RequireAuth, RequireRole } from "@/auth/guards";
 import { RoleAppShell, type RoleShellConfig } from "@/components/Chrome/RoleAppShell";
@@ -50,6 +51,7 @@ const OFFICER_SHELL_CONFIG: RoleShellConfig = {
     { to: "/app", label: "Priority Cases", icon: LayoutDashboard, exact: true },
     { to: "/app/fields", label: "Farms & Plots", icon: Sprout },
     { to: "/app/crop-health", label: "Crop Health", icon: ScanLine },
+    { to: "/app/assisted-reports", label: "Assisted Reports", icon: UserPlus },
     { to: "/app/map", label: "Surveillance Map", icon: Map },
     { to: "/app/forecast", label: "Forecast & Risk", icon: CloudSun },
     { to: "/app/traps", label: "Pest Traps", icon: Bug },
@@ -58,9 +60,9 @@ const OFFICER_SHELL_CONFIG: RoleShellConfig = {
   ],
   mobileTabs: [
     { to: "/app", label: "Cases", icon: LayoutDashboard, exact: true },
+    { to: "/app/assisted-reports", label: "Assisted", icon: UserPlus },
     { to: "/app/fields", label: "Fields", icon: Sprout },
     { to: "/app/map", label: "Map", icon: Map },
-    { to: "/app/crop-health", label: "Health", icon: ScanLine },
     { to: "/app/reports", label: "Reports", icon: FileBarChart },
   ],
 };

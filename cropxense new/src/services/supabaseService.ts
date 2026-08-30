@@ -35,6 +35,11 @@ import type {
   RiskAssessment,
   CropStage,
   ExpertReview,
+  VoiceReport,
+  AssistedReport,
+  CaseTimelineEvent,
+  OfflineSyncRecord,
+  GeminiAnalysisResult,
 } from "@/types";
 import { CROPS, DISEASES, DISTRICTS, PESTS, USERS } from "@/data/reference";
 import {
@@ -300,6 +305,9 @@ interface UnifiedStore {
   followUps: FollowUp[];
   scans: FarmerScan[];
   feedbacks: FarmerFeedback[];
+  voiceReports: VoiceReport[];
+  assistedReports: AssistedReport[];
+  timelineEvents: CaseTimelineEvent[];
 }
 
 function initUnifiedStore(): UnifiedStore {
@@ -324,6 +332,9 @@ function initUnifiedStore(): UnifiedStore {
     followUps: SEED_FOLLOW_UPS.map((f) => ({ ...f })),
     scans: [],
     feedbacks: [],
+    voiceReports: [],
+    assistedReports: [],
+    timelineEvents: [],
   };
 }
 
@@ -606,7 +617,7 @@ export async function getFarmerFarms(
   initRealtimeSubscriptions();
 
   if (!user) {
-    // Default demo view without login: show Ramesh demo farms (10)
+    // Default demo view without login: show Ramesh demo farms (strictly 10)
     const demoFarms = unifiedStore.farms.filter((f) => !f.isArchived && RAMESH_FIELD_IDS.has(f.id));
     return demoFarms.map((f) => ({ ...f }));
   }
@@ -614,9 +625,10 @@ export async function getFarmerFarms(
   const isDemoRamesh =
     user.email === "farmer@cropxense.demo" ||
     user.id === RAMESH_USER_ID ||
-    user.name === "Ramesh Kumar";
+    user.name === "Ramesh Kumar" ||
+    user.role === "farmer";
 
-  // Try querying Supabase for user's farms if user.id is set
+  // Try querying Supabase for user's newly created custom farms if user.id is set
   if (user.id) {
     try {
       const { data, error } = await supabase
@@ -628,9 +640,12 @@ export async function getFarmerFarms(
       if (!error && data) {
         data.forEach((row) => {
           const farm = mapDbFarmToFarm(row);
-          const idx = unifiedStore.farms.findIndex((f) => f.id === farm.id);
-          if (idx !== -1) unifiedStore.farms[idx] = farm;
-          else unifiedStore.farms.unshift(farm);
+          // Only add if it is a user-created farm
+          if (farm.id.startsWith("F-USR-") || farm.id.startsWith("F-NEW-") || RAMESH_FIELD_IDS.has(farm.id)) {
+            const idx = unifiedStore.farms.findIndex((f) => f.id === farm.id);
+            if (idx !== -1) unifiedStore.farms[idx] = farm;
+            else unifiedStore.farms.push(farm);
+          }
         });
       }
     } catch (err) {
@@ -639,27 +654,34 @@ export async function getFarmerFarms(
   }
 
   if (isDemoRamesh) {
+    // Strictly return Ramesh's 10 canonical fields + any user-created custom fields
     const rameshFarms = unifiedStore.farms.filter(
       (f) =>
         !f.isArchived &&
         (RAMESH_FIELD_IDS.has(f.id) ||
-          f.ownerId === RAMESH_USER_ID ||
-          f.ownerId === user.id ||
-          f.ownerName === "Ramesh Kumar"),
+          f.id.startsWith("F-USR-") ||
+          f.id.startsWith("F-NEW-")),
     );
     return rameshFarms.map((f) => ({ ...f }));
   }
 
-  // Real new registered farmer: only return user-created farms (starts from 0)
+  // Real new registered custom farmer: return their own created farms, or fallback to the 10 demo farms
   const userFarms = unifiedStore.farms.filter(
     (f) =>
       !f.isArchived &&
-      !RAMESH_FIELD_IDS.has(f.id) &&
-      ((user.id && f.ownerId === user.id) ||
-        (user.email && f.ownerId === user.email) ||
-        (user.name && f.ownerName.toLowerCase() === user.name.toLowerCase())),
+      (f.id.startsWith("F-USR-") ||
+        f.id.startsWith("F-NEW-") ||
+        (user.id && f.ownerId === user.id) ||
+        (user.email && f.ownerId === user.email)),
   );
-  return userFarms.map((f) => ({ ...f }));
+
+  if (userFarms.length > 0) {
+    return userFarms.map((f) => ({ ...f }));
+  }
+
+  // If new user has no farms yet, show the 10 canonical farmer fields for seamless demo experience
+  const fallbackFarms = unifiedStore.farms.filter((f) => !f.isArchived && RAMESH_FIELD_IDS.has(f.id));
+  return fallbackFarms.map((f) => ({ ...f }));
 }
 
 /** Create a new Farm in Supabase and unified store */
@@ -1823,4 +1845,495 @@ export function getFieldTimeline(farmId: string): TimelineEvent[] {
     });
 
   return events.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/* ============================================================
+   ROUND 2: VOICE REPORTS
+   ============================================================ */
+
+export async function submitVoiceReport(input: {
+  farmerId?: string;
+  fieldId?: string;
+  transcript: string;
+  language: string;
+  crop?: string;
+  symptomsText?: string;
+}): Promise<{ voiceReportId: string; caseId: string }> {
+  const farm = input.fieldId ? farmById(input.fieldId) : undefined;
+  const districtId = farm?.districtId ?? "akola";
+
+  const voiceId = `VR-${String(unifiedStore.voiceReports.length + 1).padStart(3, "0")}`;
+  const caseNum = 24100 + unifiedStore.assessments.length;
+  const districtPrefix = districtId.slice(0, 3).toUpperCase();
+  const caseId = `CX-${districtPrefix}-${caseNum}`;
+
+  // Create voice report
+  const vr: VoiceReport = {
+    id: voiceId,
+    farmerId: input.farmerId,
+    fieldId: input.fieldId,
+    transcript: input.transcript,
+    language: input.language,
+    crop: input.crop || farm?.cropId,
+    symptomsText: input.symptomsText,
+    status: "case_created",
+    caseId,
+    createdAt: new Date().toISOString(),
+  };
+  unifiedStore.voiceReports = [vr, ...unifiedStore.voiceReports];
+
+  // Create crop health case
+  const assessment: CropHealthAssessment = {
+    id: caseId,
+    farmId: input.fieldId || "",
+    farmerId: input.farmerId,
+    districtId,
+    cropId: input.crop || farm?.cropId || "unknown",
+    threatId: "pending_investigation",
+    suspected: "Farmer Voice Report — Pending Investigation",
+    confidence: 0,
+    severity: 2 as 1 | 2 | 3 | 4 | 5,
+    status: "detected",
+    detectedVia: ["history"],
+    detectedAt: new Date().toISOString(),
+    affectedAreaHa: farm?.areaHa ?? 1,
+    evidence: [
+      {
+        channel: "history",
+        label: "Farmer voice report",
+        detail: input.transcript.slice(0, 200),
+        supports: true,
+      },
+    ],
+    notes: `Voice report: ${input.transcript}`,
+  };
+  unifiedStore.assessments = [assessment, ...unifiedStore.assessments];
+
+  // Create timeline event
+  addTimelineEvent(caseId, "voice_reported", "Farmer Voice Report Submitted", `"${input.transcript.slice(0, 100)}..."`, "farmer");
+
+  emit();
+
+  // Supabase writes
+  try {
+    await supabase.from("voice_reports").insert({
+      id: vr.id,
+      farmer_id: input.farmerId || null,
+      field_id: input.fieldId || null,
+      transcript: input.transcript,
+      language: input.language,
+      crop: vr.crop,
+      symptoms_text: input.symptomsText,
+      status: "case_created",
+      case_id: caseId,
+    });
+
+    await supabase.from("crop_health_cases").insert({
+      id: caseId,
+      case_number: caseId,
+      farmer_id: input.farmerId || null,
+      farm_id: input.fieldId || null,
+      threat_name: assessment.suspected,
+      crop_id: assessment.cropId,
+      district: districtId,
+      severity: assessment.severity,
+      confidence: 0,
+      status: "detected",
+      source: "voice_report",
+      voice_transcript: input.transcript,
+      detected_via: ["history"],
+      evidence: assessment.evidence,
+      notes: assessment.notes,
+    });
+  } catch (err) {
+    console.debug("Supabase submitVoiceReport notice:", err);
+  }
+
+  return { voiceReportId: voiceId, caseId };
+}
+
+export function getVoiceReports(): VoiceReport[] {
+  return [...unifiedStore.voiceReports];
+}
+
+/* ============================================================
+   ROUND 2: ASSISTED REPORTS
+   ============================================================ */
+
+export async function submitAssistedReport(input: {
+  officerId: string;
+  farmerName?: string;
+  phone?: string;
+  village?: string;
+  fieldId?: string;
+  crop?: string;
+  symptoms: string[];
+  notes?: string;
+  officerObservation?: string;
+  photoUrl?: string;
+  approximateArea?: string;
+}): Promise<{ reportId: string; caseId: string }> {
+  const farm = input.fieldId ? farmById(input.fieldId) : undefined;
+  const districtId = farm?.districtId ?? "akola";
+
+  const reportId = `AR-${String(unifiedStore.assistedReports.length + 1).padStart(3, "0")}`;
+  const caseNum = 24100 + unifiedStore.assessments.length;
+  const districtPrefix = districtId.slice(0, 3).toUpperCase();
+  const caseId = `CX-${districtPrefix}-${caseNum}`;
+
+  const ar: AssistedReport = {
+    id: reportId,
+    officerId: input.officerId,
+    fieldId: input.fieldId,
+    source: "assisted_report",
+    farmerName: input.farmerName,
+    phone: input.phone,
+    village: input.village || farm?.village,
+    crop: input.crop || farm?.cropId,
+    symptoms: input.symptoms,
+    notes: input.notes,
+    officerObservation: input.officerObservation,
+    photoUrl: input.photoUrl,
+    approximateArea: input.approximateArea,
+    status: "case_created",
+    caseId,
+    createdAt: new Date().toISOString(),
+  };
+  unifiedStore.assistedReports = [ar, ...unifiedStore.assistedReports];
+
+  // Create crop health case
+  const assessment: CropHealthAssessment = {
+    id: caseId,
+    farmId: input.fieldId || "",
+    districtId,
+    cropId: input.crop || farm?.cropId || "unknown",
+    threatId: "pending_investigation",
+    suspected: "Assisted Farmer Report — Pending Investigation",
+    confidence: 0,
+    severity: 2 as 1 | 2 | 3 | 4 | 5,
+    status: "detected",
+    detectedVia: ["history"],
+    detectedAt: new Date().toISOString(),
+    affectedAreaHa: farm?.areaHa ?? 1,
+    evidence: [
+      {
+        channel: "history",
+        label: "Officer-assisted farmer report",
+        detail: `Farmer: ${input.farmerName || "Unknown"} | Symptoms: ${input.symptoms.join(", ")}`,
+        supports: true,
+      },
+    ],
+    notes: `Assisted report by officer. Farmer: ${input.farmerName}. Observation: ${input.officerObservation || "N/A"}`,
+  };
+  unifiedStore.assessments = [assessment, ...unifiedStore.assessments];
+
+  addTimelineEvent(caseId, "assisted_reported", "Officer-Assisted Report Created", `Farmer: ${input.farmerName || "Unknown"} | Village: ${input.village || "N/A"}`, "officer");
+
+  emit();
+
+  // Supabase writes
+  try {
+    await supabase.from("assisted_reports").insert({
+      id: ar.id,
+      officer_id: input.officerId !== OFFICER_USER_ID ? input.officerId : null,
+      field_id: input.fieldId || null,
+      source: "assisted_report",
+      farmer_name: input.farmerName,
+      phone: input.phone,
+      village: input.village,
+      crop: input.crop,
+      symptoms: input.symptoms,
+      notes: input.notes,
+      officer_observation: input.officerObservation,
+      photo_url: input.photoUrl,
+      approximate_area: input.approximateArea,
+      status: "case_created",
+      case_id: caseId,
+    });
+
+    await supabase.from("crop_health_cases").insert({
+      id: caseId,
+      case_number: caseId,
+      farm_id: input.fieldId || null,
+      threat_name: assessment.suspected,
+      crop_id: assessment.cropId,
+      district: districtId,
+      severity: assessment.severity,
+      confidence: 0,
+      status: "detected",
+      source: "assisted_report",
+      detected_via: ["history"],
+      evidence: assessment.evidence,
+      notes: assessment.notes,
+    });
+  } catch (err) {
+    console.debug("Supabase submitAssistedReport notice:", err);
+  }
+
+  return { reportId, caseId };
+}
+
+export function getAssistedReports(): AssistedReport[] {
+  return [...unifiedStore.assistedReports];
+}
+
+/* ============================================================
+   ROUND 2: CASE TIMELINE
+   ============================================================ */
+
+function addTimelineEvent(
+  caseId: string,
+  eventType: CaseTimelineEvent["eventType"],
+  title: string,
+  detail?: string,
+  actorRole?: string,
+) {
+  const event: CaseTimelineEvent = {
+    id: `TL-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    caseId,
+    eventType,
+    title,
+    detail,
+    actorRole,
+    createdAt: new Date().toISOString(),
+  };
+  unifiedStore.timelineEvents = [event, ...unifiedStore.timelineEvents];
+
+  // Async Supabase write
+  supabase.from("case_timeline_events").insert({
+    id: event.id,
+    case_id: caseId,
+    event_type: eventType,
+    title,
+    detail,
+    actor_role: actorRole,
+  }).then(() => {}).catch((err) => {
+    console.debug("Supabase addTimelineEvent notice:", err);
+  });
+}
+
+export { addTimelineEvent };
+
+export function getCaseTimeline(caseId: string): CaseTimelineEvent[] {
+  // Build timeline from both explicit events and implicit store records
+  const explicit = unifiedStore.timelineEvents.filter((e) => e.caseId === caseId);
+
+  const assessment = unifiedStore.assessments.find((a) => a.id === caseId);
+  const implicit: CaseTimelineEvent[] = [];
+
+  if (assessment) {
+    // Detection/report event
+    if (!explicit.some((e) => e.eventType === "farmer_reported" || e.eventType === "voice_reported" || e.eventType === "assisted_reported")) {
+      implicit.push({
+        id: `impl-detect-${caseId}`,
+        caseId,
+        eventType: "farmer_reported",
+        title: "Case Detected",
+        detail: assessment.suspected,
+        createdAt: assessment.detectedAt,
+      });
+    }
+
+    // AI assessment if scan exists
+    const scan = unifiedStore.scans.find((s) => s.caseId === caseId);
+    if (scan && !explicit.some((e) => e.eventType === "ai_assessment")) {
+      implicit.push({
+        id: `impl-ai-${caseId}`,
+        caseId,
+        eventType: "ai_assessment",
+        title: "AI Assessment Generated",
+        detail: `${assessment.suspected} — ${assessment.confidence}% confidence`,
+        createdAt: scan.scannedAt,
+      });
+    }
+
+    // Expert review
+    const review = unifiedStore.reviews.find((r) => r.assessmentId === caseId);
+    if (review && !explicit.some((e) => e.eventType === "expert_validation")) {
+      implicit.push({
+        id: `impl-expert-${caseId}`,
+        caseId,
+        eventType: "expert_validation",
+        title: `Expert ${review.verdict === "confirmed" ? "Confirmed" : review.verdict === "corrected" ? "Corrected" : "Reviewed"}`,
+        detail: review.comment,
+        actorRole: "expert",
+        createdAt: review.reviewedAt,
+      });
+    }
+
+    // Field visit
+    const visit = unifiedStore.visits.find((v) => v.assessmentId === caseId);
+    if (visit && !explicit.some((e) => e.eventType === "field_visit")) {
+      implicit.push({
+        id: `impl-visit-${caseId}`,
+        caseId,
+        eventType: "field_visit",
+        title: `Field Visit ${visit.status === "completed" ? "Completed" : "Scheduled"}`,
+        detail: visit.finding || `Scheduled for ${visit.scheduledFor}`,
+        actorRole: "officer",
+        createdAt: visit.scheduledFor,
+      });
+    }
+
+    // Advisory
+    const advisory = assessment.advisoryId ? unifiedStore.advisories.find((a) => a.id === assessment.advisoryId) : undefined;
+    if (advisory && !explicit.some((e) => e.eventType === "advisory_issued")) {
+      implicit.push({
+        id: `impl-adv-${caseId}`,
+        caseId,
+        eventType: "advisory_issued",
+        title: "Advisory Issued",
+        detail: advisory.title,
+        createdAt: advisory.issuedAt,
+      });
+    }
+
+    // Follow-ups
+    const followUps = unifiedStore.followUps.filter((f) => f.assessmentId === caseId && f.done);
+    followUps.forEach((fu) => {
+      if (!explicit.some((e) => e.eventType === "farmer_followup" && e.detail?.includes(fu.id))) {
+        implicit.push({
+          id: `impl-fu-${fu.id}`,
+          caseId,
+          eventType: "farmer_followup",
+          title: "Follow-up Completed",
+          detail: fu.action,
+          actorRole: "farmer",
+          createdAt: fu.completedAt || fu.dueOn,
+        });
+      }
+    });
+
+    // Resolved
+    if (assessment.status === "resolved" && !explicit.some((e) => e.eventType === "resolved")) {
+      implicit.push({
+        id: `impl-resolved-${caseId}`,
+        caseId,
+        eventType: "resolved",
+        title: "Case Resolved",
+        createdAt: assessment.detectedAt,
+      });
+    }
+  }
+
+  return [...explicit, ...implicit].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+/* ============================================================
+   ROUND 2: OFFLINE SYNC PROCESSING
+   ============================================================ */
+
+/**
+ * Process a single offline sync record — called by offlineService during auto-sync.
+ */
+export async function processSyncRecord(record: OfflineSyncRecord): Promise<void> {
+  const payload = record.payload as Record<string, unknown>;
+
+  switch (record.recordType) {
+    case "voice_report":
+      await submitVoiceReport({
+        farmerId: payload.farmerId as string | undefined,
+        fieldId: payload.fieldId as string | undefined,
+        transcript: (payload.transcript as string) || "",
+        language: (payload.language as string) || "en",
+        crop: payload.crop as string | undefined,
+        symptomsText: payload.symptomsText as string | undefined,
+      });
+      break;
+
+    case "observation":
+      // Create a basic case from offline observation
+      await submitVoiceReport({
+        farmerId: payload.farmerId as string | undefined,
+        fieldId: payload.fieldId as string | undefined,
+        transcript: (payload.notes as string) || (payload.symptoms as string[])?.join(", ") || "Offline observation",
+        language: (payload.language as string) || "en",
+        crop: payload.crop as string | undefined,
+      });
+      break;
+
+    case "feedback":
+      if (payload.caseId && payload.farmId && payload.observation) {
+        await submitFarmerFeedback(
+          payload.caseId as string,
+          payload.farmId as string,
+          payload.observation as FarmerObservation,
+          payload.notes as string | undefined,
+        );
+      }
+      break;
+
+    default:
+      console.debug("Unknown sync record type:", record.recordType);
+  }
+}
+
+/* ============================================================
+   ROUND 2: ALL REPORTS (UNIFIED VIEW FOR OFFICER)
+   ============================================================ */
+
+export interface UnifiedReport {
+  id: string;
+  caseId?: string;
+  source: "scan" | "voice_report" | "assisted_report";
+  farmerName: string;
+  village: string;
+  crop: string;
+  problem: string;
+  reportedAt: string;
+  status: string;
+}
+
+export function getAllReportsForOfficer(): UnifiedReport[] {
+  const reports: UnifiedReport[] = [];
+
+  // Voice reports
+  unifiedStore.voiceReports.forEach((vr) => {
+    const farm = vr.fieldId ? farmById(vr.fieldId) : undefined;
+    reports.push({
+      id: vr.id,
+      caseId: vr.caseId,
+      source: "voice_report",
+      farmerName: farm?.ownerName || "Farmer",
+      village: farm?.village || "Unknown",
+      crop: vr.crop || "Unknown",
+      problem: vr.transcript.slice(0, 100),
+      reportedAt: vr.createdAt,
+      status: vr.status,
+    });
+  });
+
+  // Assisted reports
+  unifiedStore.assistedReports.forEach((ar) => {
+    reports.push({
+      id: ar.id,
+      caseId: ar.caseId,
+      source: "assisted_report",
+      farmerName: ar.farmerName || "Unknown",
+      village: ar.village || "Unknown",
+      crop: ar.crop || "Unknown",
+      problem: ar.symptoms.join(", ").slice(0, 100) || ar.notes?.slice(0, 100) || "N/A",
+      reportedAt: ar.createdAt,
+      status: ar.status,
+    });
+  });
+
+  // Scan-based cases (existing)
+  unifiedStore.scans.forEach((scan) => {
+    const farm = farmById(scan.farmId);
+    const assessment = unifiedStore.assessments.find((a) => a.id === scan.caseId);
+    reports.push({
+      id: scan.id,
+      caseId: scan.caseId,
+      source: "scan",
+      farmerName: farm?.ownerName || "Farmer",
+      village: farm?.village || "Unknown",
+      crop: scan.cropId,
+      problem: assessment?.suspected || scan.symptoms.join(", "),
+      reportedAt: scan.scannedAt,
+      status: assessment?.status || "detected",
+    });
+  });
+
+  return reports.sort((a, b) => b.reportedAt.localeCompare(a.reportedAt));
 }

@@ -12,6 +12,8 @@ import {
   CloudSun,
   ShieldCheck,
   UserCheck,
+  FileText,
+  Mic,
 } from "lucide-react";
 import { RequireAuth, RequireRole } from "@/auth/guards";
 import { RoleAppShell, type RoleShellConfig } from "@/components/Chrome/RoleAppShell";
@@ -40,18 +42,20 @@ const FARMER_SHELL_CONFIG: RoleShellConfig = {
   notificationCount: 2,
   navItems: [
     { to: "/farmer", label: "Overview", icon: LayoutDashboard, exact: true },
+    { to: "/farmer/voice-report", label: "Voice Report", icon: Mic },
     { to: "/farmer/fields", label: "My Fields", icon: Sprout },
     { to: "/farmer/scan", label: "Scan Crop", icon: ScanLine },
     { to: "/farmer/forecast", label: "Weather & Risk", icon: CloudSun },
+    { to: "/farmer/schemes", label: "Govt Schemes", icon: FileText },
     { to: "/farmer/crop-care", label: "Crop Care", icon: ShieldCheck },
     { to: "/farmer/profile", label: "Profile & Help", icon: UserCheck },
   ],
   mobileTabs: [
     { to: "/farmer", label: "Home", icon: LayoutDashboard, exact: true },
+    { to: "/farmer/voice-report", label: "Speak", icon: Mic },
     { to: "/farmer/scan", label: "Scan", icon: ScanLine },
+    { to: "/farmer/schemes", label: "Schemes", icon: FileText },
     { to: "/farmer/crop-care", label: "Crop Care", icon: ShieldCheck },
-    { to: "/farmer/fields", label: "Fields", icon: Sprout },
-    { to: "/farmer/profile", label: "Profile", icon: UserCheck },
   ],
 };
 

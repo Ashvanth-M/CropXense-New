@@ -307,3 +307,110 @@ export interface RiskAssessment {
   overallRisk: RiskLevel;
   drivers: string[];
 }
+
+/* ───────────────────────── Round 2: Rural Access Types ───────────────────── */
+
+export type CaseSource = "scan" | "voice_report" | "assisted_report";
+
+export interface VoiceReport {
+  id: string;
+  farmerId?: string | undefined;
+  fieldId?: string | undefined;
+  transcript: string;
+  language: string;
+  crop?: string | undefined;
+  symptomsText?: string | undefined;
+  status: "submitted" | "case_created" | "reviewed" | "resolved";
+  caseId?: string | undefined;
+  createdAt: string;
+}
+
+export interface AssistedReport {
+  id: string;
+  farmerId?: string | undefined;
+  officerId: string;
+  fieldId?: string | undefined;
+  source: "assisted_report";
+  farmerName?: string | undefined;
+  phone?: string | undefined;
+  village?: string | undefined;
+  crop?: string | undefined;
+  symptoms: string[];
+  notes?: string | undefined;
+  officerObservation?: string | undefined;
+  photoUrl?: string | undefined;
+  approximateArea?: string | undefined;
+  status: "submitted" | "case_created" | "reviewed" | "resolved";
+  caseId?: string | undefined;
+  createdAt: string;
+}
+
+export interface SchemeInfo {
+  id: string;
+  name: string;
+  description: string;
+  category: "crop_insurance" | "input_assistance" | "irrigation" | "equipment_subsidy" | "soil_health" | "income_support" | "crop_protection" | "agricultural_loans";
+  eligibility: string;
+  benefits: string;
+  documents: string;
+  applicationMethod: string;
+  officialSource: string;
+  lastVerifiedAt: string;
+}
+
+export interface CaseTimelineEvent {
+  id: string;
+  caseId: string;
+  eventType:
+    | "farmer_reported"
+    | "voice_reported"
+    | "assisted_reported"
+    | "ai_assessment"
+    | "officer_review"
+    | "field_visit"
+    | "expert_validation"
+    | "advisory_issued"
+    | "farmer_followup"
+    | "resolved";
+  title: string;
+  detail?: string | undefined;
+  actorRole?: string | undefined;
+  createdAt: string;
+}
+
+export interface GeminiAnalysisResult {
+  leaf_detected: boolean;
+  crop: string;
+  symptoms: string[];
+  possible_issues: { name: string; likelihood: string; evidence: string }[];
+  confidence: number;
+  severity: "low" | "medium" | "high";
+  explanation: string;
+  next_action: string;
+  uncertainty: string;
+  raw_visible_evidence: string;
+}
+
+export interface OfflineSyncRecord {
+  id: string;
+  userId?: string | undefined;
+  recordType: "voice_report" | "observation" | "scan" | "feedback";
+  payload: unknown;
+  status: "pending" | "syncing" | "synced" | "failed";
+  createdAt: string;
+  syncedAt?: string | undefined;
+  imageBlob?: Blob | undefined;
+}
+
+export type AbnormalityLevel = "normal" | "watch" | "abnormal" | "urgent";
+
+export interface CropAbnormalityAssessment {
+  affectedCount: "few" | "some" | "many" | "almost_entire";
+  spreadSpeed: "not_spreading" | "slowly" | "quickly" | "very_quickly";
+  firstNoticed: "today" | "2_3_days" | "about_week" | "more_than_week";
+  visibleSigns: string[];
+  result: AbnormalityLevel;
+  score: number;
+  explanation: string;
+}
+

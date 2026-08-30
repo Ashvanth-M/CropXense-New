@@ -602,6 +602,22 @@ export const en = {
   "expertise.entomology": "Agricultural Entomology (Pests & Vectors)",
   "expertise.agronomy": "Agronomy & Crop Physiology",
   "expertise.soil": "Soil & Environmental Chemistry",
+
+  /* ── Round 2: Rural Access & Schemes ── */
+  "nav.voiceReport": "Voice Report",
+  "nav.schemes": "Govt Schemes",
+  "nav.assistedReports": "Assisted Reports",
+  "voice.speakProblem": "Call & Speak Your Crop Problem",
+  "voice.subtext": "No smartphone knowledge required. Tell us what is happening in your field.",
+  "voice.startRecording": "🎙 Speak Your Problem",
+  "voice.callSupport": "📞 Call Agriculture Support",
+  "schemes.title": "Farmer Schemes & Benefits",
+  "schemes.subtitle": "Discover government agricultural schemes and check your eligibility.",
+  "offline.statusOnline": "Online",
+  "offline.statusOffline": "Offline — data saved locally",
+  "offline.statusSyncing": "Syncing...",
+  "offline.statusSynced": "Synced successfully",
+  "abnormality.title": "Is Something Unusual in My Crop?",
 } as const;
 
 export type TranslationKey = keyof typeof en;
