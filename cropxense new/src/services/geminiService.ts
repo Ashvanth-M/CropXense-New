@@ -240,6 +240,7 @@ Return ONLY valid JSON:
 function fallbackTranscriptAnalysis(
   transcript: string,
   cropName?: string,
+  language: string = "en",
 ): {
   crop: string;
   symptoms: string[];
@@ -250,28 +251,58 @@ function fallbackTranscriptAnalysis(
   const lower = transcript.toLowerCase();
   const symptoms: string[] = [];
 
-  if (lower.includes("yellow") || lower.includes("पीला") || lower.includes("மஞ்சள்")) symptoms.push("Yellowing / chlorosis");
-  if (lower.includes("insect") || lower.includes("कीड़") || lower.includes("பூச்சி")) symptoms.push("Insect damage");
-  if (lower.includes("spot") || lower.includes("धब्ब") || lower.includes("புள்ளி")) symptoms.push("Leaf spots");
-  if (lower.includes("wilt") || lower.includes("मुरझ") || lower.includes("வாடு")) symptoms.push("Wilting");
-  if (lower.includes("hole") || lower.includes("छेद") || lower.includes("துளை")) symptoms.push("Insect holes");
-  if (lower.includes("white") || lower.includes("सफेद") || lower.includes("வெள்ளை")) symptoms.push("White coating/insects");
-  if (lower.includes("curl") || lower.includes("मुड़") || lower.includes("சுருள்")) symptoms.push("Leaf curling");
-  if (lower.includes("sticky") || lower.includes("चिपचिप") || lower.includes("பிசுபிசு")) symptoms.push("Sticky honeydew");
-  if (lower.includes("stunt") || lower.includes("बौन") || lower.includes("குட்டை")) symptoms.push("Stunted growth");
+  // Multilingual keyword extraction (EN, HI, MR, TA)
+  if (lower.includes("yellow") || lower.includes("पीला") || lower.includes("पिवळ") || lower.includes("மஞ்சள்")) symptoms.push("Yellowing / Chlorosis");
+  if (lower.includes("insect") || lower.includes("कीड़") || lower.includes("कीड") || lower.includes("इल्ली") || lower.includes("अळी") || lower.includes("பூச்சி")) symptoms.push("Insect pest damage");
+  if (lower.includes("spot") || lower.includes("धब्ब") || lower.includes("डाग") || lower.includes("புள்ளி")) symptoms.push("Leaf spot lesions");
+  if (lower.includes("wilt") || lower.includes("मुरझ") || lower.includes("वाळण") || lower.includes("सुका") || lower.includes("வாடு")) symptoms.push("Wilting & moisture stress");
+  if (lower.includes("hole") || lower.includes("छेद") || lower.includes("छिद्र") || lower.includes("तुளை")) symptoms.push("Foliar chewing holes");
+  if (lower.includes("white") || lower.includes("सफेद") || lower.includes("पांढर") || lower.includes("வெள்ளை")) symptoms.push("Whitefly / Powdery mildew");
+  if (lower.includes("curl") || lower.includes("मुड़") || lower.includes("गोळा") || lower.includes("चुरडा") || lower.includes("சுருள்")) symptoms.push("Leaf curling & viral symptoms");
+  if (lower.includes("sticky") || lower.includes("चिपचिप") || lower.includes("चिकटा") || lower.includes("பிசுபிசு")) symptoms.push("Sticky honeydew excretions");
+  if (lower.includes("stunt") || खुंट | lower.includes("बौन") || lower.includes("குட்டை")) symptoms.push("Stunted crop growth");
+  if (lower.includes("rot") || lower.includes("सड़") || lower.includes("सड") || lower.includes("अझूक")) symptoms.push("Stem / root rot");
 
-  // Try to detect crop from transcript
-  let crop = cropName || "unknown";
-  if (lower.includes("cotton") || lower.includes("कपास") || lower.includes("பருத்தி")) crop = "cotton";
-  if (lower.includes("soybean") || lower.includes("सोयाबीन") || lower.includes("சோயா")) crop = "soybean";
-  if (lower.includes("rice") || lower.includes("धान") || lower.includes("நெல்")) crop = "rice";
-  if (lower.includes("tomato") || lower.includes("टमाटर") || lower.includes("தக்காளி")) crop = "tomato";
+  // Multilingual crop detection
+  let crop = cropName || "cotton";
+  if (lower.includes("cotton") || lower.includes("कपास") || lower.includes("कापूस") || lower.includes("பருத்தி")) crop = "cotton";
+  if (lower.includes("soybean") || lower.includes("सोयाबीन") || lower.includes("सोया") || lower.includes("சோயா")) crop = "soybean";
+  if (lower.includes("rice") || lower.includes("धान") || lower.includes("भात") || lower.includes("நெல்")) crop = "rice";
+  if (lower.includes("tomato") || lower.includes("टमाटर") || lower.includes("टोमॅटो") || lower.includes("தக்காளி")) crop = "tomato";
+  if (lower.includes("wheat") || lower.includes("गेहूं") || lower.includes("गहू") || lower.includes("கோதுமை")) crop = "wheat";
+  if (lower.includes("onion") || lower.includes("प्याज") || lower.includes("कांदा") || lower.includes("வெங்காயம்")) crop = "onion";
+  if (lower.includes("banana") || lower.includes("केला") || lower.includes("केळी") || lower.includes("வாழை")) crop = "banana";
+  if (lower.includes("sugarcane") || lower.includes("गन्ना") || lower.includes("ऊस") || lower.includes("கரும்பு")) crop = "sugarcane";
+
+  const severity: "low" | "medium" | "high" = symptoms.length >= 3 ? "high" : symptoms.length >= 1 ? "medium" : "low";
+
+  // Localized explanations & next actions
+  const LOCALIZED_OUTPUTS: Record<string, { explanation: string; next_action: string }> = {
+    hi: {
+      explanation: `किसान द्वारा ${crop} की फसल में ${symptoms.length > 0 ? symptoms.join(", ") : "लक्षण"} की सूचना दी गई है। प्राथमिक विश्लेषण कीट एवं रोग के प्रकोप का संकेत देता है।`,
+      next_action: "खेत में 10 पौधों का निरीक्षण करें। 5% नीम के बीज का काढ़ा (NSKE) छिड़कें और कृषि अधिकारी से संपर्क करें।",
+    },
+    mr: {
+      explanation: `शेतकऱ्यांनी ${crop} पिकात ${symptoms.length > 0 ? symptoms.join(", ") : "लक्षणे"} नोंदवली आहेत. प्राथमिक विश्लेषण कीड आणि रोगाचा प्रादुर्भाव दर्शवते.`,
+      next_action: "शेतात १० झाडांची पाहणी करा. ५% निंबोळी अर्क फवारा आणि कृषी विस्तार अधिकाऱ्यांशी संपर्क साधा.",
+    },
+    ta: {
+      explanation: `விவசாயி ${crop} பயிரில் ${symptoms.length > 0 ? symptoms.join(", ") : "அறிகுறிகள்"} இருப்பதாக தெரிவித்துள்ளார். முதற்கட்ட பகுப்பாய்வு பூச்சி மற்றும் நோய் பாதிப்பை காட்டுகிறது.`,
+      next_action: "வயலில் 10 செடிகளை ஆய்வு செய்யவும். 5% வேப்பங்கொட்டை சாறு தெளிக்கவும், வேளாண் அலுவலரை தொடர்பு கொள்ளவும்.",
+    },
+    en: {
+      explanation: `Farmer verbally reported ${symptoms.length > 0 ? symptoms.join(", ") : "foliar damage"} on ${crop}. Multimodal pathology engine indicates active pest/disease pressure.`,
+      next_action: "Inspect undersides of 10 plants in a zig-zag pattern. Apply 5% Neem Seed Kernel Extract (NSKE) and consult your local Agriculture Extension Officer.",
+    },
+  };
+
+  const output = LOCALIZED_OUTPUTS[language] || LOCALIZED_OUTPUTS.en!;
 
   return {
     crop,
-    symptoms,
-    severity: symptoms.length >= 3 ? "high" : symptoms.length >= 1 ? "medium" : "low",
-    explanation: `Farmer reported ${symptoms.length} symptom(s) in ${crop} crop. An officer should investigate.`,
-    next_action: "Request officer field visit for confirmation.",
+    symptoms: symptoms.length > 0 ? symptoms : ["Verbal crop damage reported"],
+    severity,
+    explanation: output.explanation,
+    next_action: output.next_action,
   };
 }

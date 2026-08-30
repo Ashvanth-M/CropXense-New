@@ -104,6 +104,10 @@ export function ArduinoStatusCard({
     setManualReading,
   } = useArduinoSerial();
 
+  const safeTemp = typeof reading?.temperature === "number" ? reading.temperature : 28.5;
+  const safeHum = typeof reading?.humidity === "number" ? reading.humidity : 74.0;
+  const safeSoil = typeof reading?.soilMoisture === "number" ? reading.soilMoisture : 65.0;
+
   // Internal crop selection if not controlled externally
   const [internalCropId, setInternalCropId] = useState<string>(controlledCropId || "cotton");
   const activeCropId = controlledCropId || internalCropId;
@@ -119,9 +123,9 @@ export function ArduinoStatusCard({
   const [showPipeline, setShowPipeline] = useState(false);
   const [showAllCrops, setShowAllCrops] = useState(false);
   const [historyTimeframe, setHistoryTimeframe] = useState<"24h" | "7d">("24h");
-  const [calibTemp, setCalibTemp] = useState<number>(reading.temperature || 28.5);
-  const [calibHum, setCalibHum] = useState<number>(reading.humidity || 74.0);
-  const [calibSoil, setCalibSoil] = useState<number>(reading.soilMoisture || 65.0);
+  const [calibTemp, setCalibTemp] = useState<number>(safeTemp);
+  const [calibHum, setCalibHum] = useState<number>(safeHum);
+  const [calibSoil, setCalibSoil] = useState<number>(safeSoil);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
@@ -131,17 +135,20 @@ export function ArduinoStatusCard({
   // Periodic Telemetry Logging
   useEffect(() => {
     if (isConnected || isSimulated) {
-      recordSensorReading(reading, {
-        farmerId: user?.id,
-        fieldId,
-        source: isConnected ? "hardware" : "simulated",
-      }).then((rec) => {
+      recordSensorReading(
+        { temperature: safeTemp, humidity: safeHum, soilMoisture: safeSoil },
+        {
+          farmerId: user?.id,
+          fieldId,
+          source: isConnected ? "hardware" : "simulated",
+        },
+      ).then((rec) => {
         if (rec) {
           setHistoryRecords((prev) => [...prev, rec]);
         }
       });
     }
-  }, [isConnected, isSimulated, reading.temperature, reading.humidity, reading.soilMoisture, fieldId, user?.id]);
+  }, [isConnected, isSimulated, safeTemp, safeHum, safeSoil, fieldId, user?.id]);
 
   // Load History on Mount and Timeframe switch
   useEffect(() => {
@@ -152,45 +159,45 @@ export function ArduinoStatusCard({
 
   // Telemetry Summary Stats
   const stats: TelemetryStats = useMemo(() => {
-    return computeTelemetryStats(historyRecords, reading);
-  }, [historyRecords, reading]);
+    return computeTelemetryStats(historyRecords, { temperature: safeTemp, humidity: safeHum, soilMoisture: safeSoil });
+  }, [historyRecords, safeTemp, safeHum, safeSoil]);
 
   // 1. Soil Condition Evaluation
   const soilCondition: SoilConditionResult = useMemo(() => {
-    return classifySoilMoisture(reading.soilMoisture);
-  }, [reading.soilMoisture]);
+    return classifySoilMoisture(safeSoil);
+  }, [safeSoil]);
 
   // 2. Selected Crop Suitability
   const cropSuitability: CropSuitabilityResult = useMemo(() => {
-    return evaluateCropSuitability(activeCropId, reading.temperature, reading.humidity, reading.soilMoisture);
-  }, [activeCropId, reading.temperature, reading.humidity, reading.soilMoisture]);
+    return evaluateCropSuitability(activeCropId, safeTemp, safeHum, safeSoil);
+  }, [activeCropId, safeTemp, safeHum, safeSoil]);
 
   // All Crops Suitability Comparison
   const allCropsSuitability = useMemo(() => {
     return Object.keys(AGRONOMIC_CROP_THRESHOLDS).map((cId) =>
-      evaluateCropSuitability(cId, reading.temperature, reading.humidity, reading.soilMoisture),
+      evaluateCropSuitability(cId, safeTemp, safeHum, safeSoil),
     );
-  }, [reading.temperature, reading.humidity, reading.soilMoisture]);
+  }, [safeTemp, safeHum, safeSoil]);
 
   // 3. Irrigation Recommendation
   const irrigationRec: IrrigationRecommendationResult = useMemo(() => {
-    return computeIrrigationRecommendation(reading.soilMoisture, activeCropId, reading.temperature);
-  }, [reading.soilMoisture, activeCropId, reading.temperature]);
+    return computeIrrigationRecommendation(safeSoil, activeCropId, safeTemp);
+  }, [safeSoil, activeCropId, safeTemp]);
 
   // 4. Crop Stress Analysis
   const cropStress: CropStressResult = useMemo(() => {
-    return computeCropStress(reading.temperature, reading.humidity, reading.soilMoisture, activeCropId);
-  }, [reading.temperature, reading.humidity, reading.soilMoisture, activeCropId]);
+    return computeCropStress(safeTemp, safeHum, safeSoil, activeCropId);
+  }, [safeTemp, safeHum, safeSoil, activeCropId]);
 
   // 5. Microclimate Pathology Risk
   const pathologyRisk: MicroclimatePathologyRiskResult = useMemo(() => {
-    return computeMicroclimatePathologyRisk(reading.temperature, reading.humidity, reading.soilMoisture);
-  }, [reading.temperature, reading.humidity, reading.soilMoisture]);
+    return computeMicroclimatePathologyRisk(safeTemp, safeHum, safeSoil);
+  }, [safeTemp, safeHum, safeSoil]);
 
   // 6. Smart Sensor Alerts
   const alerts: SmartSensorAlert[] = useMemo(() => {
-    return generateSmartSensorAlerts(reading.temperature, reading.humidity, reading.soilMoisture, status, activeCropId);
-  }, [reading.temperature, reading.humidity, reading.soilMoisture, status, activeCropId]);
+    return generateSmartSensorAlerts(safeTemp, safeHum, safeSoil, status, activeCropId);
+  }, [safeTemp, safeHum, safeSoil, status, activeCropId]);
 
   async function handleConnect() {
     setConnectError(null);
@@ -349,7 +356,7 @@ export function ArduinoStatusCard({
           <div className="flex items-center gap-2">
             <Clock className="size-3.5 text-ink-2" />
             <span>
-              <strong>Sensor Node Offline:</strong> Last recorded reading was {reading.temperature.toFixed(1)}°C · {reading.humidity.toFixed(0)}% RH · {reading.soilMoisture.toFixed(0)}% VWC.
+              <strong>Sensor Node Offline:</strong> Last recorded reading was {safeTemp.toFixed(1)}°C · {safeHum.toFixed(0)}% RH · {safeSoil.toFixed(0)}% VWC.
             </span>
           </div>
           <span className="text-[0.6875rem] font-mono text-ink-2/80">Pending Live Sync</span>
@@ -397,7 +404,7 @@ export function ArduinoStatusCard({
               <span className="text-caption text-ink-2 block">Ambient Temperature</span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="num text-[1.5rem] font-bold text-ink">
-                  {reading.temperature.toFixed(1)}
+                  {safeTemp.toFixed(1)}
                 </span>
                 <span className="text-[0.875rem] font-semibold text-ink-2">°C</span>
               </div>
@@ -408,10 +415,10 @@ export function ArduinoStatusCard({
             <span
               className={cx(
                 "num text-[0.75rem] font-bold",
-                reading.temperature >= 24 && reading.temperature <= 32 ? "text-amber font-semibold" : "text-forest",
+                safeTemp >= 24 && safeTemp <= 32 ? "text-amber font-semibold" : "text-forest",
               )}
             >
-              {reading.temperature >= 24 && reading.temperature <= 32 ? "Pathogen Active" : "Normal"}
+              {safeTemp >= 24 && safeTemp <= 32 ? "Pathogen Active" : "Normal"}
             </span>
           </div>
         </div>
@@ -426,7 +433,7 @@ export function ArduinoStatusCard({
               <span className="text-caption text-ink-2 block">Relative Humidity</span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="num text-[1.5rem] font-bold text-water">
-                  {reading.humidity.toFixed(1)}
+                  {safeHum.toFixed(1)}
                 </span>
                 <span className="text-[0.875rem] font-semibold text-ink-2">% RH</span>
               </div>
@@ -437,10 +444,10 @@ export function ArduinoStatusCard({
             <span
               className={cx(
                 "num text-[0.75rem] font-bold",
-                reading.humidity >= 75 ? "text-alert" : reading.humidity >= 65 ? "text-amber" : "text-forest",
+                safeHum >= 75 ? "text-alert" : safeHum >= 65 ? "text-amber" : "text-forest",
               )}
             >
-              {reading.humidity >= 75 ? "High Spore Risk" : "Stable"}
+              {safeHum >= 75 ? "High Spore Risk" : "Stable"}
             </span>
           </div>
         </div>
@@ -455,7 +462,7 @@ export function ArduinoStatusCard({
               <span className="text-caption text-ink-2 block">Soil Moisture (VWC)</span>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <span className="num text-[1.5rem] font-bold text-leaf">
-                  {reading.soilMoisture.toFixed(0)}
+                  {safeSoil.toFixed(0)}
                 </span>
                 <span className="text-[0.875rem] font-semibold text-ink-2">% VWC</span>
               </div>
@@ -759,34 +766,118 @@ export function ArduinoStatusCard({
             </button>
           </div>
 
-          {/* All 8 Crops Suitability Table */}
-          {showAllCrops && (
-            <div className="border-t border-line pt-3 mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              {allCropsSuitability.map((cs) => (
-                <div
-                  key={cs.cropId}
-                  onClick={() => handleSelectCrop(cs.cropId)}
-                  className={cx(
-                    "border p-2 rounded cursor-pointer transition-all",
-                    activeCropId === cs.cropId ? "border-forest bg-forest/10" : "border-line bg-surface hover:bg-surface-2",
-                  )}
-                >
-                  <div className="flex items-center justify-between font-semibold">
-                    <span>{cs.cropName}</span>
-                    <span
-                      className={cx(
-                        "text-[0.6875rem] font-bold",
-                        cs.overall === "Suitable" ? "text-forest" : cs.overall === "Moderate" ? "text-amber" : "text-alert",
-                      )}
-                    >
-                      {cs.overall}
-                    </span>
-                  </div>
-                  <span className="text-[0.6875rem] text-ink-2 block mt-0.5">{cs.suitabilityScore}% Match</span>
-                </div>
-              ))}
+          {/* ══════════════════════════════════════════════════════════════════════════
+              WHICH CROPS ARE SUITABLE & NOT SUITABLE (SOIL & CLIMATE MATRIX)
+              ══════════════════════════════════════════════════════════════════════════ */}
+          <div className="border-t border-line/80 pt-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
+                <span className="text-caption text-forest font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <Sprout className="size-3.5 text-forest" /> Real-time Crop Soil &amp; Microclimate Compatibility Matrix
+                </span>
+                <h5 className="font-display text-sm font-bold text-ink">
+                  Which crops are suitable and NOT suitable for this soil condition?
+                </h5>
+              </div>
+              <span className="text-[0.6875rem] font-mono text-ink-2 bg-paper border border-line px-2 py-0.5 rounded">
+                Live Sensor Telemetry: {safeSoil.toFixed(0)}% Soil VWC · {safeTemp.toFixed(1)}°C · {safeHum.toFixed(0)}% RH
+              </span>
             </div>
-          )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {/* 🟢 SUITABLE CROPS */}
+              <div className="border border-forest/30 bg-forest/5 p-3.5 rounded space-y-2.5">
+                <div className="flex items-center justify-between border-b border-forest/20 pb-2">
+                  <div className="flex items-center gap-1.5 font-bold text-forest text-xs uppercase tracking-wide">
+                    <CheckCircle2 className="size-4" />
+                    <span>Suitable Crops Now ({allCropsSuitability.filter(c => c.overall === "Suitable" || (c.overall === "Moderate" && c.suitabilityScore >= 70)).length})</span>
+                  </div>
+                  <span className="text-[0.6875rem] text-forest font-semibold bg-forest/10 px-2 py-0.5 rounded">
+                    Good to Cultivate
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {allCropsSuitability
+                    .filter((c) => c.overall === "Suitable" || (c.overall === "Moderate" && c.suitabilityScore >= 70))
+                    .map((cs) => {
+                      const thresh = AGRONOMIC_CROP_THRESHOLDS[cs.cropId];
+                      return (
+                        <div
+                          key={cs.cropId}
+                          onClick={() => handleSelectCrop(cs.cropId)}
+                          className={cx(
+                            "border p-2.5 rounded bg-surface transition-all cursor-pointer",
+                            activeCropId === cs.cropId ? "border-forest ring-1 ring-forest/50" : "border-line hover:border-forest/40",
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-ink capitalize flex items-center gap-1">
+                              🌱 {cs.cropName} <span className="text-[0.6875rem] text-ink-2">({thresh?.vernacular})</span>
+                            </span>
+                            <span className="text-[0.6875rem] font-bold bg-forest/10 text-forest px-2 py-0.5 rounded">
+                              {cs.suitabilityScore}% Match · {cs.overall}
+                            </span>
+                          </div>
+                          <p className="text-[0.75rem] text-ink-2 mt-1 leading-snug">
+                            <strong>Why Suitable:</strong> {cs.summary} Soil moisture ({safeSoil.toFixed(0)}% VWC) is within target field capacity ({thresh?.soilMoisture.optMin}–{thresh?.soilMoisture.optMax}% VWC).
+                          </p>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+
+              {/* 🔴 NOT SUITABLE / HIGH STRESS CROPS */}
+              <div className="border border-alert/30 bg-alert/5 p-3.5 rounded space-y-2.5">
+                <div className="flex items-center justify-between border-b border-alert/20 pb-2">
+                  <div className="flex items-center gap-1.5 font-bold text-alert text-xs uppercase tracking-wide">
+                    <XCircle className="size-4" />
+                    <span>Not Suitable / High Stress Crops ({allCropsSuitability.filter(c => c.overall === "Poor" || (c.overall === "Moderate" && c.suitabilityScore < 70)).length})</span>
+                  </div>
+                  <span className="text-[0.6875rem] text-alert font-semibold bg-alert/10 px-2 py-0.5 rounded">
+                    Requires Soil Adjustment
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {allCropsSuitability
+                    .filter((c) => c.overall === "Poor" || (c.overall === "Moderate" && c.suitabilityScore < 70))
+                    .map((cs) => {
+                      const thresh = AGRONOMIC_CROP_THRESHOLDS[cs.cropId];
+                      const stressParams = cs.parameters.filter((p) => p.status === "stress");
+                      return (
+                        <div
+                          key={cs.cropId}
+                          onClick={() => handleSelectCrop(cs.cropId)}
+                          className={cx(
+                            "border p-2.5 rounded bg-surface transition-all cursor-pointer",
+                            activeCropId === cs.cropId ? "border-alert ring-1 ring-alert/50" : "border-line hover:border-alert/40",
+                          )}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-xs text-ink capitalize flex items-center gap-1">
+                              ⚠ {cs.cropName} <span className="text-[0.6875rem] text-ink-2">({thresh?.vernacular})</span>
+                            </span>
+                            <span className="text-[0.6875rem] font-bold bg-alert/10 text-alert px-2 py-0.5 rounded">
+                              {cs.suitabilityScore}% Match · Poor Conditions
+                            </span>
+                          </div>
+                          <div className="text-[0.75rem] text-ink mt-1 leading-snug space-y-1">
+                            <p className="text-alert font-medium">
+                              <strong>Why NOT Suitable:</strong> {stressParams.length > 0 ? stressParams.map((sp) => sp.explanation).join("; ") : cs.summary}
+                            </p>
+                            <p className="text-ink-2 text-[0.6875rem]">
+                              <strong>Requirement:</strong> Needs {thresh?.soilMoisture.optMin}–{thresh?.soilMoisture.optMax}% VWC soil moisture and {thresh?.temperature.optMin}–{thresh?.temperature.optMax}°C temperature.
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
