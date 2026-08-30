@@ -143,6 +143,7 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
   const [isTranscribingServer, setIsTranscribingServer] = useState(false);
   const [transcribedEngine, setTranscribedEngine] = useState<"speechmatics" | "webspeech" | "gemini" | "preset" | null>(null);
   const [isPlayingTts, setIsPlayingTts] = useState(false);
+  const [micError, setMicError] = useState<string | null>(null);
 
   // Update speech lang when user switches app language
   useEffect(() => {
@@ -233,6 +234,10 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
   const startRecording = useCallback(async () => {
     stopSpeakingAdvisory();
     setIsPlayingTts(false);
+    setMicError(null);
+    setAnalysisResult(null);
+    setTranscript("");
+    setTranscribedEngine(null);
 
     const success = await voiceManager.startListening(speechLangCode, {
       onInterim: (text) => {
@@ -247,7 +252,16 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
       },
       onError: (err) => {
         if (err === "permission_denied") {
-          toast("Microphone access was denied. Please allow mic permissions or pick a sample below.", "watch");
+          setMicError("Microphone permission was denied. Please allow microphone access in your browser settings, then try again.");
+          toast("⚠️ Microphone access was denied. Please allow mic permissions in your browser settings.", "critical");
+          setState("idle");
+        } else if (err === "mic_unavailable") {
+          setMicError("No microphone detected. Please connect a microphone or use the preset examples below.");
+          toast("⚠️ No microphone found. Please connect one or use presets.", "critical");
+          setState("idle");
+        } else if (err === "network_error") {
+          // Web Speech needs network for some languages; non-fatal, continue recording
+          toast("Speech recognition network issue. Audio is still being recorded for Gemini transcription.", "watch");
         }
       },
     });
@@ -255,7 +269,7 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     if (success) {
       setState("recording");
       const langObj = SUPPORTED_SPEECH_LANGUAGES.find((l) => l.code === speechLangCode);
-      toast(`Listening in ${langObj?.nativeName || langObj?.name}... Start speaking now!`, "healthy");
+      toast(`🎙 Listening in ${langObj?.nativeName || langObj?.name}... Speak your crop problem now!`, "healthy");
     }
   }, [speechLangCode, toast]);
 
@@ -272,14 +286,19 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
     setState("stopped");
     setAudioLevel(0);
 
+    // Use Web Speech text if available
     if (result.text) {
       setTranscript(result.text);
     }
 
-    if (result.audioBlob) {
+    // If Web Speech didn't produce text but we have audio, send to Gemini server-side
+    if (!result.webSpeechWorked && result.audioBlob && result.audioBlob.size > 500) {
+      toast("Web Speech didn't capture text. Sending audio to AI for transcription...", "watch");
       processCapturedAudioBlob(result.audioBlob);
+    } else if (result.text) {
+      toast("✓ Voice captured successfully! Review your transcript below.", "healthy");
     }
-  }, [processCapturedAudioBlob]);
+  }, [processCapturedAudioBlob, toast]);
 
   const resetRecording = useCallback(async () => {
     stopSpeakingAdvisory();
@@ -593,6 +612,28 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
           )}
         </div>
 
+        {/* Microphone Error Display */}
+        {micError && (
+          <div className="flex items-start gap-3 border border-alert/40 bg-alert/10 p-3.5 rounded text-xs text-alert">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold block">Microphone Error</span>
+              <span>{micError}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Live Listening Prompt (shown when recording but no transcript yet) */}
+        {state === "recording" && !transcript && (
+          <div className="flex items-center gap-3 border border-forest/30 bg-forest/5 px-4 py-3 rounded text-sm text-forest font-semibold animate-pulse">
+            <Mic className="size-5" />
+            <div>
+              <span className="block font-bold">🎙 Listening...</span>
+              <span className="text-xs font-normal text-ink-2">Speak your crop problem clearly into your microphone...</span>
+            </div>
+          </div>
+        )}
+
         {/* 1-Click Multilingual Problem Presets */}
         <div className="border border-line bg-surface-2 p-3.5 rounded space-y-2">
           <div className="flex items-center justify-between">
@@ -617,10 +658,20 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
 
         {/* Transcript Box */}
         {(transcript || state === "recording" || state === "stopped" || isTranscribingServer) && (
-          <div className="space-y-2 border border-line bg-paper p-4 rounded">
+          <div className={cx(
+            "space-y-2 border p-4 rounded",
+            state === "recording" ? "border-forest bg-forest/5" : "border-line bg-paper",
+          )}>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <label className="text-caption font-semibold text-ink">Spoken Statement (Audio Transcript):</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="text-caption font-semibold text-ink">
+                  {state === "recording" ? "📝 Live Transcript:" : "Spoken Statement (Audio Transcript):"}
+                </label>
+                {transcribedEngine === "webspeech" && state !== "recording" && (
+                  <span className="font-mono text-[0.6875rem] text-forest font-bold bg-forest/15 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Radio className="size-3" /> Web Speech API
+                  </span>
+                )}
                 {transcribedEngine === "speechmatics" && (
                   <span className="font-mono text-[0.6875rem] text-forest font-bold bg-forest/15 px-2 py-0.5 rounded flex items-center gap-1">
                     <Cpu className="size-3" /> Speechmatics Universal ASR
@@ -637,13 +688,15 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
                   </span>
                 )}
               </div>
-              <button
-                type="button"
-                onClick={() => setIsEditing(!isEditing)}
-                className="text-xs text-forest font-semibold hover:underline flex items-center gap-1"
-              >
-                <Edit3 className="size-3" /> {isEditing ? "Save Words" : "Edit Words"}
-              </button>
+              {state !== "recording" && (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(!isEditing)}
+                  className="text-xs text-forest font-semibold hover:underline flex items-center gap-1"
+                >
+                  <Edit3 className="size-3" /> {isEditing ? "Save Words" : "Edit Words"}
+                </button>
+              )}
             </div>
 
             {isEditing ? (
@@ -655,12 +708,17 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
                 className="w-full border border-forest bg-surface p-2.5 text-sm text-ink outline-none focus:ring-1 focus:ring-forest rounded resize-y"
               />
             ) : (
-              <div className="bg-surface p-3 border border-line rounded text-sm text-ink leading-relaxed">
+              <div className={cx(
+                "p-3 border rounded text-sm text-ink leading-relaxed min-h-[48px]",
+                state === "recording" ? "bg-surface border-forest/30" : "bg-surface border-line",
+              )}>
                 {transcript ? (
                   <span className="italic font-medium">"{transcript}"</span>
                 ) : (
                   <span className="text-ink-2 italic">
-                    {state === "recording" ? "Listening to your microphone... Start speaking now." : "No words captured yet. Press 'Speak Your Problem' or click a preset above."}
+                    {state === "recording"
+                      ? "🎙 Listening... Words will appear here as you speak."
+                      : "No words captured yet. Press 'Speak Your Problem' or click a preset above."}
                   </span>
                 )}
               </div>
@@ -668,20 +726,29 @@ export function VoiceReportSection({ farms, onCaseCreated, compact = false }: Pr
           </div>
         )}
 
-        {/* Submit Action Button */}
+        {/* Submit & Clear Actions */}
         {transcript.trim() && !analysisResult && (
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={submitting}
-            className={cx(
-              "w-full sm:w-auto inline-flex min-h-[50px] items-center justify-center gap-2.5 px-8 text-sm font-bold shadow-sm transition-all rounded",
-              submitting ? "bg-forest/50 text-surface/70 cursor-not-allowed" : "bg-forest text-surface hover:bg-[#0e2b20]",
-            )}
-          >
-            <Sparkles className="size-4" />
-            {submitting ? "Processing Spoken Problem with AI…" : `Analyze & Submit Problem (${selectedLangKey.toUpperCase()})`}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting}
+              className={cx(
+                "inline-flex min-h-[50px] items-center justify-center gap-2.5 px-8 text-sm font-bold shadow-sm transition-all rounded",
+                submitting ? "bg-forest/50 text-surface/70 cursor-not-allowed" : "bg-forest text-surface hover:bg-[#0e2b20]",
+              )}
+            >
+              <Sparkles className="size-4" />
+              {submitting ? "Processing Spoken Problem with AI…" : `Analyze & Submit Problem (${selectedLangKey.toUpperCase()})`}
+            </button>
+            <button
+              type="button"
+              onClick={resetRecording}
+              className="inline-flex min-h-[44px] items-center gap-2 border border-line bg-paper px-4 text-xs font-semibold text-ink hover:bg-surface-2 transition-colors rounded"
+            >
+              <RotateCcw className="size-3.5" /> Clear
+            </button>
+          </div>
         )}
       </div>
 
