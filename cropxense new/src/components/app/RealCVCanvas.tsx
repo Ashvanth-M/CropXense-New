@@ -321,36 +321,42 @@ export function RealCVCanvas({
           className="max-h-[440px] w-auto object-contain cursor-crosshair transition-transform duration-200"
         />
 
-        {/* Spot Inspection Tooltip Overlay */}
+        {/* Spot Inspection Tooltip Overlay (Fixed position & unclipped styling) */}
         {clickedSpot && (
           <div
-            className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md border border-emerald-500/40 p-3 rounded-lg text-xs text-slate-200 z-10 shadow-lg max-w-[240px] animate-in fade-in"
+            className="absolute top-3 left-3 bg-[#0f172a]/95 backdrop-blur-md border border-emerald-500/60 p-3.5 rounded-lg text-xs text-slate-100 z-30 shadow-2xl min-w-[220px] max-w-[280px]"
           >
-            <div className="flex items-center justify-between font-bold text-emerald-400 mb-1">
-              <span>Point Inspector</span>
+            <div className="flex items-center justify-between font-bold text-emerald-400 mb-1.5 border-b border-slate-700/60 pb-1">
+              <span className="flex items-center gap-1">
+                <Sparkles className="size-3.5" />
+                <span>Pixel Point Inspector</span>
+              </span>
               <button
+                type="button"
                 onClick={() => setClickedSpot(null)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-white p-0.5 rounded hover:bg-slate-800 transition-colors"
+                title="Close Inspector"
               >
                 ✕
               </button>
             </div>
-            <p className="font-semibold text-white">{clickedSpot.status}</p>
-            <div className="mt-1 flex items-center justify-between text-slate-300">
-              <span>Health Score:</span>
+            <p className="font-semibold text-white text-[0.8125rem]">{clickedSpot.status}</p>
+            <div className="mt-1.5 flex items-center justify-between text-slate-200">
+              <span className="text-slate-400">Health Score:</span>
               <span
-                className={
+                className={cx(
+                  "font-bold text-[0.875rem]",
                   clickedSpot.healthScore > 60
-                    ? "text-emerald-400 font-bold"
+                    ? "text-emerald-400"
                     : clickedSpot.healthScore > 35
-                    ? "text-amber-400 font-bold"
-                    : "text-red-400 font-bold"
-                }
+                    ? "text-amber-400"
+                    : "text-red-400",
+                )}
               >
                 {clickedSpot.healthScore}/100
               </span>
             </div>
-            <div className="mt-1 text-[10px] text-slate-400 flex space-x-2">
+            <div className="mt-1.5 text-[0.6875rem] text-slate-400 flex items-center justify-between border-t border-slate-800 pt-1">
               <span>RGB: ({clickedSpot.r}, {clickedSpot.g}, {clickedSpot.b})</span>
               <span>Pos: ({clickedSpot.x}, {clickedSpot.y})</span>
             </div>

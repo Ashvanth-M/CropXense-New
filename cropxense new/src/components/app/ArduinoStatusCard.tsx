@@ -1,16 +1,21 @@
 /**
- * CropXense Hardware Status Console (ArduinoStatusCard)
+ * CropXense Agricultural IoT Decision System (ArduinoStatusCard).
  *
- * Real-time hardware status console for connected Arduino / ESP32 microclimate nodes:
- * - Live gauges for Temperature, Relative Humidity, and Soil Moisture VWC %
- * - Connection status badges (Live Hardware, Simulated, Stale, Offline)
- * - 1-Click Connect & Disconnect via Web Serial API (115200 baud)
- * - Interactive Telemetry Simulator & Manual Calibration Sliders
- * - Collapsible Live Raw Serial Terminal packet monitor
- * - Agronomic Physiological Anomaly Banner
+ * Converts live DHT22 and Capacitive Soil Moisture hardware telemetry into
+ * agronomic intelligence:
+ * 1. Live Hardware Panel (Web Serial API, 115200 baud, Simulator, Calibration, Raw Terminal)
+ * 2. Soil Moisture Condition Classification (0-100% VWC -> Very Dry, Dry, Optimal, Wet, Waterlogged)
+ * 3. Crop Suitability Engine (Cotton, Soybean, Rice, Wheat, Tomato, Onion, Banana, Sugarcane)
+ * 4. Irrigation Recommendation (Soil moisture + crop requirements)
+ * 5. 3-Vector Crop Stress Analysis (Water, Heat, Humidity stress + Primary Driving Signal)
+ * 6. Microclimate Pathology & Spore Risk (Fungal Pressure, Heat Stress, Moisture Stress)
+ * 7. Crop-Wise Sensor Interpretation (Current vs Agronomic Baseline Ranges)
+ * 8. Sensor History Analytics (24h / 7d Min, Max, Avg, Current without fabricated data)
+ * 9. Smart Sensor Alerts Center
+ * 10. Sensor Data -> CropXense Pipeline Visualizer
  */
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Cpu,
   Thermometer,
@@ -29,16 +34,61 @@ import {
   ChevronUp,
   X,
   Zap,
+  Info,
+  ShieldAlert,
+  Flame,
+  Waves,
+  ArrowRight,
+  TrendingUp,
+  Clock,
+  Database,
+  Layers,
+  HelpCircle,
+  Activity,
+  Calendar,
+  Check,
 } from "lucide-react";
 import { useArduinoSerial } from "@/hooks/useArduinoSerial";
+import {
+  classifySoilMoisture,
+  evaluateCropSuitability,
+  computeIrrigationRecommendation,
+  computeCropStress,
+  computeMicroclimatePathologyRisk,
+  generateSmartSensorAlerts,
+  type SoilConditionResult,
+  type CropSuitabilityResult,
+  type IrrigationRecommendationResult,
+  type CropStressResult,
+  type MicroclimatePathologyRiskResult,
+  type SmartSensorAlert,
+} from "@/services/iotDecisionEngine";
+import {
+  recordSensorReading,
+  getFieldSensorHistory,
+  computeTelemetryStats,
+  type FieldSensorReadingRecord,
+  type TelemetryStats,
+} from "@/services/sensorTelemetryService";
+import { AGRONOMIC_CROP_THRESHOLDS } from "@/data/agronomicThresholds";
+import { CROPS } from "@/data/reference";
 import { cx } from "@/lib/cx";
+import { useAuth } from "@/auth/AuthContext";
 
 interface ArduinoStatusCardProps {
   className?: string;
-  compact?: boolean;
+  cropId?: string;
+  fieldId?: string;
+  onCropChange?: (cropId: string) => void;
 }
 
-export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusCardProps) {
+export function ArduinoStatusCard({
+  className,
+  cropId: controlledCropId,
+  fieldId = "F-AKO-001",
+  onCropChange,
+}: ArduinoStatusCardProps) {
+  const { user } = useAuth();
   const {
     isSupported,
     isConnected,
@@ -54,13 +104,93 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
     setManualReading,
   } = useArduinoSerial();
 
+  // Internal crop selection if not controlled externally
+  const [internalCropId, setInternalCropId] = useState<string>(controlledCropId || "cotton");
+  const activeCropId = controlledCropId || internalCropId;
+
+  function handleSelectCrop(id: string) {
+    setInternalCropId(id);
+    if (onCropChange) onCropChange(id);
+  }
+
+  // UI Drawer states
   const [showTerminal, setShowTerminal] = useState(false);
   const [showCalibration, setShowCalibration] = useState(false);
+  const [showPipeline, setShowPipeline] = useState(false);
+  const [showAllCrops, setShowAllCrops] = useState(false);
+  const [historyTimeframe, setHistoryTimeframe] = useState<"24h" | "7d">("24h");
   const [calibTemp, setCalibTemp] = useState<number>(reading.temperature || 28.5);
   const [calibHum, setCalibHum] = useState<number>(reading.humidity || 74.0);
   const [calibSoil, setCalibSoil] = useState<number>(reading.soilMoisture || 65.0);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+
+  // Historical Telemetry State
+  const [historyRecords, setHistoryRecords] = useState<FieldSensorReadingRecord[]>([]);
+
+  // Periodic Telemetry Logging
+  useEffect(() => {
+    if (isConnected || isSimulated) {
+      recordSensorReading(reading, {
+        farmerId: user?.id,
+        fieldId,
+        source: isConnected ? "hardware" : "simulated",
+      }).then((rec) => {
+        if (rec) {
+          setHistoryRecords((prev) => [...prev, rec]);
+        }
+      });
+    }
+  }, [isConnected, isSimulated, reading.temperature, reading.humidity, reading.soilMoisture, fieldId, user?.id]);
+
+  // Load History on Mount and Timeframe switch
+  useEffect(() => {
+    getFieldSensorHistory(fieldId, historyTimeframe).then((data) => {
+      setHistoryRecords(data);
+    });
+  }, [fieldId, historyTimeframe]);
+
+  // Telemetry Summary Stats
+  const stats: TelemetryStats = useMemo(() => {
+    return computeTelemetryStats(historyRecords, reading);
+  }, [historyRecords, reading]);
+
+  // 1. Soil Condition Evaluation
+  const soilCondition: SoilConditionResult = useMemo(() => {
+    return classifySoilMoisture(reading.soilMoisture);
+  }, [reading.soilMoisture]);
+
+  // 2. Selected Crop Suitability
+  const cropSuitability: CropSuitabilityResult = useMemo(() => {
+    return evaluateCropSuitability(activeCropId, reading.temperature, reading.humidity, reading.soilMoisture);
+  }, [activeCropId, reading.temperature, reading.humidity, reading.soilMoisture]);
+
+  // All Crops Suitability Comparison
+  const allCropsSuitability = useMemo(() => {
+    return Object.keys(AGRONOMIC_CROP_THRESHOLDS).map((cId) =>
+      evaluateCropSuitability(cId, reading.temperature, reading.humidity, reading.soilMoisture),
+    );
+  }, [reading.temperature, reading.humidity, reading.soilMoisture]);
+
+  // 3. Irrigation Recommendation
+  const irrigationRec: IrrigationRecommendationResult = useMemo(() => {
+    return computeIrrigationRecommendation(reading.soilMoisture, activeCropId, reading.temperature);
+  }, [reading.soilMoisture, activeCropId, reading.temperature]);
+
+  // 4. Crop Stress Analysis
+  const cropStress: CropStressResult = useMemo(() => {
+    return computeCropStress(reading.temperature, reading.humidity, reading.soilMoisture, activeCropId);
+  }, [reading.temperature, reading.humidity, reading.soilMoisture, activeCropId]);
+
+  // 5. Microclimate Pathology Risk
+  const pathologyRisk: MicroclimatePathologyRiskResult = useMemo(() => {
+    return computeMicroclimatePathologyRisk(reading.temperature, reading.humidity, reading.soilMoisture);
+  }, [reading.temperature, reading.humidity, reading.soilMoisture]);
+
+  // 6. Smart Sensor Alerts
+  const alerts: SmartSensorAlert[] = useMemo(() => {
+    return generateSmartSensorAlerts(reading.temperature, reading.humidity, reading.soilMoisture, status, activeCropId);
+  }, [reading.temperature, reading.humidity, reading.soilMoisture, status, activeCropId]);
 
   async function handleConnect() {
     setConnectError(null);
@@ -81,7 +211,7 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
     setShowCalibration(false);
   }
 
-  // Determine status color and label
+  // Status Badge Configuration
   const statusConfig = {
     connected: {
       label: "Connected (Live Hardware)",
@@ -90,9 +220,9 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
       icon: <CheckCircle2 className="size-3.5 text-forest" />,
     },
     simulated: {
-      label: "Simulated Telemetry Active",
-      badgeBg: "bg-water/10 border-water text-water",
-      dot: "bg-water animate-pulse",
+      label: "SIMULATION MODE",
+      badgeBg: "bg-water/10 border-water text-water font-bold",
+      dot: "bg-water animate-ping",
       icon: <Radio className="size-3.5 text-water" />,
     },
     stale: {
@@ -102,7 +232,7 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
       icon: <AlertTriangle className="size-3.5 text-amber" />,
     },
     offline: {
-      label: "Sensor Node Offline",
+      label: "SENSOR NODE OFFLINE",
       badgeBg: "bg-paper border-line text-ink-2",
       dot: "bg-ink-2/50",
       icon: <XCircle className="size-3.5 text-ink-2" />,
@@ -110,8 +240,10 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
   }[status];
 
   return (
-    <div className={cx("border border-line bg-surface overflow-hidden rounded-[var(--r)] shadow-sm", className)}>
-      {/* Header Bar */}
+    <div className={cx("border border-line bg-surface overflow-hidden rounded-[var(--r)] shadow-panel space-y-0", className)}>
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          1. LIVE HARDWARE CONSOLE HEADER (Preserved intact with full control)
+          ══════════════════════════════════════════════════════════════════════════════ */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface-2 px-4 py-3">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center rounded bg-forest text-surface shadow">
@@ -120,19 +252,18 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
           <div>
             <div className="flex items-center gap-2">
               <h3 className="font-display text-[0.9375rem] font-bold text-ink">
-                Microclimate Hardware Node (DHT22 + Soil VWC)
+                Microclimate Hardware Node &amp; IoT Decision System
               </h3>
-              <span className="num text-[0.6875rem] font-mono text-ink-2">115,200 baud</span>
+              <span className="num text-[0.6875rem] font-mono text-ink-2">115,200 baud · ESP32 + DHT22</span>
             </div>
             <p className="text-[0.75rem] text-ink-2">
-              Web Serial API direct serial stream connection
+              Real-time physiological telemetry converted into actionable agronomic intelligence
             </p>
           </div>
         </div>
 
-        {/* Status Badge & Primary Action Controls */}
+        {/* Status Badge & Action Controls */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Status Badge */}
           <span
             className={cx(
               "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[0.75rem] font-semibold",
@@ -143,7 +274,6 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
             <span>{statusConfig.label}</span>
           </span>
 
-          {/* Connect / Disconnect Buttons */}
           {isConnected ? (
             <button
               type="button"
@@ -165,7 +295,6 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
             </button>
           )}
 
-          {/* Toggle Simulator */}
           <button
             type="button"
             onClick={() => toggleSimulated()}
@@ -175,13 +304,12 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
                 ? "border-water bg-water/20 text-water"
                 : "border-line bg-paper text-ink hover:bg-surface-2",
             )}
-            title="Toggle offline simulated telemetry without hardware"
+            title="Toggle simulated telemetry stream"
           >
             <Radio className="size-3" />
             <span>{isSimulated ? "Stop Sim" : "Simulate"}</span>
           </button>
 
-          {/* Calibrate Sliders Button */}
           <button
             type="button"
             onClick={() => {
@@ -194,13 +322,12 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
               "inline-flex items-center gap-1 border px-2 py-1 text-[0.75rem] font-semibold rounded transition-colors",
               showCalibration ? "border-forest bg-forest/10 text-forest" : "border-line bg-paper text-ink-2 hover:text-ink",
             )}
-            title="Manual microclimate calibration sliders"
+            title="Manual calibration overrides"
           >
             <Sliders className="size-3" />
             <span>Calibrate</span>
           </button>
 
-          {/* Toggle Raw Terminal */}
           <button
             type="button"
             onClick={() => setShowTerminal(!showTerminal)}
@@ -208,7 +335,7 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
               "inline-flex items-center gap-1 border px-2 py-1 text-[0.75rem] font-semibold rounded transition-colors",
               showTerminal ? "border-forest bg-forest/10 text-forest" : "border-line bg-paper text-ink-2 hover:text-ink",
             )}
-            title="View raw serial byte packets"
+            title="View raw serial packets"
           >
             <Terminal className="size-3" />
             <span>{showTerminal ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}</span>
@@ -216,17 +343,20 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
         </div>
       </div>
 
-      {/* Browser Support Warning */}
-      {!isSupported && (
-        <div className="border-b border-amber/30 bg-amber/10 px-4 py-2 text-[0.75rem] text-amber flex items-center gap-2">
-          <AlertTriangle className="size-4 shrink-0" />
-          <span>
-            Web Serial API is not supported in this browser. Please use Chrome, Edge, or Opera to connect physical USB hardware. You can still use the <strong>Simulate</strong> and <strong>Calibrate</strong> features!
-          </span>
+      {/* Offline Status Warning Bar */}
+      {status === "offline" && (
+        <div className="border-b border-line bg-surface-2 px-4 py-2 text-xs text-ink-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Clock className="size-3.5 text-ink-2" />
+            <span>
+              <strong>Sensor Node Offline:</strong> Last recorded reading was {reading.temperature.toFixed(1)}°C · {reading.humidity.toFixed(0)}% RH · {reading.soilMoisture.toFixed(0)}% VWC.
+            </span>
+          </div>
+          <span className="text-[0.6875rem] font-mono text-ink-2/80">Pending Live Sync</span>
         </div>
       )}
 
-      {/* Connection Error Notification */}
+      {/* Connection Errors & Anomaly Alerts */}
       {connectError && (
         <div className="border-b border-alert/30 bg-alert/10 px-4 py-2 text-[0.75rem] text-alert flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -239,7 +369,6 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
         </div>
       )}
 
-      {/* Agronomic Anomaly Alert Banner */}
       {anomaly.isAnomaly && (
         <div
           className={cx(
@@ -254,7 +383,9 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
         </div>
       )}
 
-      {/* Live Physical Gauge Meters Strip */}
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          2. LIVE SENSOR GAUGES STRIP
+          ══════════════════════════════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0 divide-line bg-surface">
         {/* Gauge 1: Ambient Temperature */}
         <div className="p-4 flex items-center justify-between">
@@ -332,26 +463,529 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
           </div>
           <div className="text-right">
             <span className="text-[0.6875rem] font-semibold text-ink-2 block uppercase">Analog Probe A0</span>
-            <span
-              className={cx(
-                "num text-[0.75rem] font-bold",
-                reading.soilMoisture >= 75 ? "text-alert" : reading.soilMoisture <= 25 ? "text-amber" : "text-forest",
-              )}
-            >
-              {reading.soilMoisture >= 75 ? "Waterlogged" : reading.soilMoisture <= 25 ? "Dry Stress" : "Optimal"}
+            <span className={cx("num text-[0.75rem] font-bold", soilCondition.badgeColor)}>
+              {soilCondition.condition}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Manual Microclimate Calibration Sliders Drawer */}
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          3. SOIL MOISTURE CONDITION & IRRIGATION DECISION
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      <div className="border-t border-line grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-line bg-surface">
+        {/* Card 1: Soil Moisture Condition */}
+        <div className="p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-caption text-forest font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Sprout className="size-3.5 text-forest" /> Soil Moisture Condition
+            </span>
+            <span className={cx("px-2 py-0.5 rounded text-xs font-bold border", soilCondition.badgeColor)}>
+              {soilCondition.condition}
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-xs text-ink font-semibold">{soilCondition.summary}</div>
+            <p className="text-xs text-ink-2 leading-relaxed">
+              <strong>Recommendation:</strong> {soilCondition.recommendation}
+            </p>
+          </div>
+
+          <p className="text-[0.6875rem] text-ink-2/70 italic border-t border-line/60 pt-1.5">
+            * Note: Capacitive sensor measures volumetric water content (% VWC) in the root zone. It does not measure soil pH, NPK, or chemical fertility.
+          </p>
+        </div>
+
+        {/* Card 2: Irrigation Recommendation */}
+        <div className="p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-caption text-water font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <Droplets className="size-3.5 text-water" /> Irrigation Recommendation
+            </span>
+            <span className={cx("px-2 py-0.5 rounded text-xs font-bold border", irrigationRec.badgeColor)}>
+              💧 {irrigationRec.state}
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-ink">{irrigationRec.reason}</p>
+            <p className="text-xs text-ink-2 leading-relaxed">
+              <strong>Action:</strong> {irrigationRec.action}
+            </p>
+          </div>
+
+          {irrigationRec.deficitPct > 0 && (
+            <div className="text-[0.6875rem] text-alert font-semibold border-t border-line/60 pt-1.5 flex items-center justify-between">
+              <span>Root-Zone Deficit: ~{irrigationRec.deficitPct}% below optimal</span>
+              <span className="font-mono">Crop: {cropSuitability.cropName}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          4. CROP STRESS & MICROCLIMATE PATHOLOGY RISK
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      <div className="border-t border-line grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-line bg-surface-2 p-4 gap-4">
+        {/* Left: 3-Vector Crop Stress */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h4 className="font-display text-xs font-bold text-ink uppercase tracking-wide flex items-center gap-1.5">
+              <Flame className="size-3.5 text-alert" /> 3-Vector Crop Stress Analysis
+            </h4>
+            <span
+              className={cx(
+                "text-[0.6875rem] font-bold px-2 py-0.5 rounded uppercase",
+                cropStress.overallStress.includes("HIGH") || cropStress.overallStress.includes("CRITICAL")
+                  ? "bg-alert/15 text-alert font-bold"
+                  : cropStress.overallStress.includes("MODERATE")
+                    ? "bg-amber/15 text-amber"
+                    : "bg-forest/15 text-forest",
+              )}
+            >
+              {cropStress.overallStress}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Water Stress</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  cropStress.waterStress === "CRITICAL" || cropStress.waterStress === "HIGH"
+                    ? "text-alert"
+                    : cropStress.waterStress === "MODERATE"
+                      ? "text-amber"
+                      : "text-forest",
+                )}
+              >
+                {cropStress.waterStress}
+              </span>
+            </div>
+
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Heat Stress</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  cropStress.heatStress === "CRITICAL" || cropStress.heatStress === "HIGH"
+                    ? "text-alert"
+                    : cropStress.heatStress === "MODERATE"
+                      ? "text-amber"
+                      : "text-forest",
+                )}
+              >
+                {cropStress.heatStress}
+              </span>
+            </div>
+
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Humidity Stress</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  cropStress.humidityStress === "HIGH"
+                    ? "text-alert"
+                    : cropStress.humidityStress === "MODERATE"
+                      ? "text-amber"
+                      : "text-forest",
+                )}
+              >
+                {cropStress.humidityStress}
+              </span>
+            </div>
+          </div>
+
+          <p className="text-[0.75rem] text-ink-2 leading-tight">
+            <strong>Signal breakdown:</strong> {cropStress.primarySignal} (VPD: {cropStress.vpdKpa.toFixed(2)} kPa).
+          </p>
+        </div>
+
+        {/* Right: Microclimate Pathology Risk */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h4 className="font-display text-xs font-bold text-ink uppercase tracking-wide flex items-center gap-1.5">
+              <ShieldAlert className="size-3.5 text-forest" /> Microclimate Pathology Risk
+            </h4>
+            <span className="text-[0.6875rem] text-ink-2">DHT22 Evidence</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Fungal Pressure</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  pathologyRisk.fungalPressure === "HIGH" ? "text-alert" : pathologyRisk.fungalPressure === "MODERATE" ? "text-amber" : "text-forest",
+                )}
+              >
+                {pathologyRisk.fungalPressure}
+              </span>
+            </div>
+
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Heat Stress</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  pathologyRisk.heatStressRisk === "HIGH" ? "text-alert" : pathologyRisk.heatStressRisk === "MODERATE" ? "text-amber" : "text-forest",
+                )}
+              >
+                {pathologyRisk.heatStressRisk}
+              </span>
+            </div>
+
+            <div className="border border-line bg-surface p-2 rounded">
+              <span className="text-caption text-ink-2 block">Moisture Deficit</span>
+              <span
+                className={cx(
+                  "num font-bold block mt-0.5",
+                  pathologyRisk.moistureStressRisk === "HIGH" ? "text-alert" : pathologyRisk.moistureStressRisk === "MODERATE" ? "text-amber" : "text-forest",
+                )}
+              >
+                {pathologyRisk.moistureStressRisk}
+              </span>
+            </div>
+          </div>
+
+          <div className="space-y-1 text-[0.75rem] text-ink-2">
+            {pathologyRisk.drivers.slice(0, 2).map((d, i) => (
+              <div key={i} className="flex items-start gap-1.5">
+                <Check className="size-3 text-forest shrink-0 mt-0.5" />
+                <span>{d}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          5. CROP SUITABILITY ENGINE & CROP-WISE SENSOR INTERPRETATION
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      <div className="border-t border-line p-4 bg-surface space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2.5">
+          <div>
+            <span className="text-caption text-forest font-bold uppercase tracking-wider">
+              Agronomic Decision Support
+            </span>
+            <h4 className="font-display text-sm font-bold text-ink">
+              Crop Suitability &amp; Environmental Baseline Comparison
+            </h4>
+          </div>
+
+          {/* Crop Selector Tabs */}
+          <div className="flex flex-wrap gap-1">
+            {Object.keys(AGRONOMIC_CROP_THRESHOLDS).map((cId) => (
+              <button
+                key={cId}
+                type="button"
+                onClick={() => handleSelectCrop(cId)}
+                className={cx(
+                  "px-2.5 py-1 text-xs font-semibold rounded capitalize transition-colors",
+                  activeCropId === cId
+                    ? "bg-forest text-surface shadow-sm"
+                    : "border border-line bg-paper text-ink-2 hover:bg-surface-2 hover:text-ink",
+                )}
+              >
+                {cId}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Selected Crop Evaluation Card */}
+        <div className="border border-line bg-surface-2 p-3.5 rounded space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-display font-bold text-ink text-sm">
+                Selected Crop: <strong className="text-forest">{cropSuitability.cropName}</strong>
+              </span>
+              <span className="text-[0.6875rem] text-ink-2">
+                ({AGRONOMIC_CROP_THRESHOLDS[activeCropId]?.vernacular})
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-caption text-ink-2">Overall Environmental Suitability:</span>
+              <span
+                className={cx(
+                  "px-2.5 py-0.5 text-xs font-bold rounded uppercase",
+                  cropSuitability.overall === "Suitable"
+                    ? "bg-forest text-surface"
+                    : cropSuitability.overall === "Moderate"
+                      ? "bg-amber text-surface"
+                      : "bg-alert text-surface",
+                )}
+              >
+                {cropSuitability.overall} ({cropSuitability.suitabilityScore}%)
+              </span>
+            </div>
+          </div>
+
+          {/* Parameter-by-Parameter Baseline Comparison */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+            {cropSuitability.parameters.map((p) => (
+              <div key={p.param} className="border border-line bg-surface p-2.5 rounded space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-ink">{p.param}</span>
+                  <span
+                    className={cx(
+                      "text-[0.6875rem] font-bold uppercase",
+                      p.status === "optimal" ? "text-forest" : p.status === "acceptable" ? "text-amber" : "text-alert",
+                    )}
+                  >
+                    {p.status}
+                  </span>
+                </div>
+                <div className="flex items-baseline justify-between text-ink">
+                  <span className="num font-bold text-sm">{p.currentValue}</span>
+                  <span className="text-[0.6875rem] text-ink-2">Target: {p.expectedRange}</span>
+                </div>
+                <p className="text-[0.6875rem] text-ink-2 leading-tight">{p.explanation}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-ink-2 gap-2 border-t border-line/60 pt-2">
+            <p className="italic">{cropSuitability.summary}</p>
+            <button
+              type="button"
+              onClick={() => setShowAllCrops(!showAllCrops)}
+              className="text-forest font-semibold hover:underline shrink-0 text-left"
+            >
+              {showAllCrops ? "Hide other crops ▲" : "Compare all 8 crops ▼"}
+            </button>
+          </div>
+
+          {/* All 8 Crops Suitability Table */}
+          {showAllCrops && (
+            <div className="border-t border-line pt-3 mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {allCropsSuitability.map((cs) => (
+                <div
+                  key={cs.cropId}
+                  onClick={() => handleSelectCrop(cs.cropId)}
+                  className={cx(
+                    "border p-2 rounded cursor-pointer transition-all",
+                    activeCropId === cs.cropId ? "border-forest bg-forest/10" : "border-line bg-surface hover:bg-surface-2",
+                  )}
+                >
+                  <div className="flex items-center justify-between font-semibold">
+                    <span>{cs.cropName}</span>
+                    <span
+                      className={cx(
+                        "text-[0.6875rem] font-bold",
+                        cs.overall === "Suitable" ? "text-forest" : cs.overall === "Moderate" ? "text-amber" : "text-alert",
+                      )}
+                    >
+                      {cs.overall}
+                    </span>
+                  </div>
+                  <span className="text-[0.6875rem] text-ink-2 block mt-0.5">{cs.suitabilityScore}% Match</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          6. SMART SENSOR ALERTS CENTER
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      {alerts.length > 0 && (
+        <div className="border-t border-line p-4 bg-surface space-y-2.5">
+          <h4 className="font-display text-xs font-bold text-ink uppercase tracking-wide flex items-center gap-1.5">
+            <AlertTriangle className="size-3.5 text-amber" /> Smart Sensor Alerts &amp; Threshold Violations ({alerts.length})
+          </h4>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            {alerts.map((al) => (
+              <div
+                key={al.id}
+                className={cx(
+                  "border p-3 rounded space-y-1",
+                  al.severity === "critical"
+                    ? "border-alert/30 bg-alert/5 text-alert"
+                    : "border-amber/30 bg-amber/5 text-amber",
+                )}
+              >
+                <div className="flex items-center justify-between font-bold">
+                  <span>{al.title}</span>
+                  <span className="font-mono text-[0.6875rem]">{al.currentValue}</span>
+                </div>
+                <p className="text-ink text-[0.75rem]">{al.evidence}</p>
+                <p className="text-ink-2 text-[0.6875rem]">
+                  <strong>Action:</strong> {al.recommendation}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          7. SENSOR TELEMETRY HISTORY (24h / 7d)
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      <div className="border-t border-line p-4 bg-surface space-y-3">
+        <div className="flex items-center justify-between border-b border-line pb-2">
+          <div className="flex items-center gap-2">
+            <Activity className="size-4 text-forest" />
+            <h4 className="font-display text-xs font-bold text-ink uppercase tracking-wide">
+              Sensor Telemetry History &amp; Statistical Bounds
+            </h4>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setHistoryTimeframe("24h")}
+              className={cx(
+                "px-2.5 py-0.5 text-xs font-semibold rounded",
+                historyTimeframe === "24h" ? "bg-forest text-surface" : "border border-line bg-paper text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              24 Hours
+            </button>
+            <button
+              type="button"
+              onClick={() => setHistoryTimeframe("7d")}
+              className={cx(
+                "px-2.5 py-0.5 text-xs font-semibold rounded",
+                historyTimeframe === "7d" ? "bg-forest text-surface" : "border border-line bg-paper text-ink-2 hover:bg-surface-2",
+              )}
+            >
+              7 Days
+            </button>
+          </div>
+        </div>
+
+        {/* Statistical Bounds Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+          {/* Temperature Bounds */}
+          <div className="border border-line bg-surface-2 p-3 rounded space-y-1.5">
+            <span className="font-semibold text-ink flex items-center justify-between">
+              <span>Temperature</span>
+              <span className="font-bold text-alert">{(stats?.current?.temp ?? reading?.temperature ?? 28.5).toFixed(1)}°C</span>
+            </span>
+            <div className="grid grid-cols-3 gap-1 text-[0.6875rem] text-center border-t border-line/60 pt-1">
+              <div>
+                <span className="text-caption text-ink-2 block">Min</span>
+                <span className="font-bold text-ink">{(stats?.min?.temp ?? reading?.temperature ?? 20).toFixed(1)}°C</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Avg</span>
+                <span className="font-bold text-ink">{(stats?.avg?.temp ?? reading?.temperature ?? 28.5).toFixed(1)}°C</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Max</span>
+                <span className="font-bold text-ink">{(stats?.max?.temp ?? reading?.temperature ?? 35).toFixed(1)}°C</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Humidity Bounds */}
+          <div className="border border-line bg-surface-2 p-3 rounded space-y-1.5">
+            <span className="font-semibold text-ink flex items-center justify-between">
+              <span>Humidity</span>
+              <span className="font-bold text-water">{(stats?.current?.hum ?? reading?.humidity ?? 70).toFixed(0)}% RH</span>
+            </span>
+            <div className="grid grid-cols-3 gap-1 text-[0.6875rem] text-center border-t border-line/60 pt-1">
+              <div>
+                <span className="text-caption text-ink-2 block">Min</span>
+                <span className="font-bold text-ink">{(stats?.min?.hum ?? reading?.humidity ?? 45).toFixed(0)}%</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Avg</span>
+                <span className="font-bold text-ink">{(stats?.avg?.hum ?? reading?.humidity ?? 70).toFixed(0)}%</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Max</span>
+                <span className="font-bold text-ink">{(stats?.max?.hum ?? reading?.humidity ?? 90).toFixed(0)}%</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Soil Moisture Bounds */}
+          <div className="border border-line bg-surface-2 p-3 rounded space-y-1.5">
+            <span className="font-semibold text-ink flex items-center justify-between">
+              <span>Soil Moisture</span>
+              <span className="font-bold text-leaf">{(stats?.current?.soil ?? reading?.soilMoisture ?? 50).toFixed(0)}% VWC</span>
+            </span>
+            <div className="grid grid-cols-3 gap-1 text-[0.6875rem] text-center border-t border-line/60 pt-1">
+              <div>
+                <span className="text-caption text-ink-2 block">Min</span>
+                <span className="font-bold text-ink">{(stats?.min?.soil ?? reading?.soilMoisture ?? 30).toFixed(0)}%</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Avg</span>
+                <span className="font-bold text-ink">{(stats?.avg?.soil ?? reading?.soilMoisture ?? 50).toFixed(0)}%</span>
+              </div>
+              <div>
+                <span className="text-caption text-ink-2 block">Max</span>
+                <span className="font-bold text-ink">{(stats?.max?.soil ?? reading?.soilMoisture ?? 75).toFixed(0)}%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {!stats.hasEnoughData && (
+          <p className="text-[0.6875rem] text-ink-2 italic bg-forest/5 border border-forest/20 p-2 rounded">
+            📊 Collecting historical readings... Live recordings are synchronized with Supabase every 15s while hardware or simulator is active.
+          </p>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          8. CROPXENSE INTERPRETATION PIPELINE
+          ══════════════════════════════════════════════════════════════════════════════ */}
+      <div className="border-t border-line p-3 bg-surface-2 flex items-center justify-between text-xs">
+        <div className="flex items-center gap-2">
+          <Database className="size-3.5 text-forest" />
+          <span className="font-semibold text-ink">How CropXense Interprets Your Field Telemetry</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowPipeline(!showPipeline)}
+          className="text-forest font-semibold hover:underline"
+        >
+          {showPipeline ? "Hide pipeline ▲" : "View pipeline flow ▼"}
+        </button>
+      </div>
+
+      {showPipeline && (
+        <div className="border-t border-line bg-surface p-4 text-xs space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-center text-ink font-semibold">
+            <span className="border border-line bg-paper px-2.5 py-1 rounded">ESP32 Hardware</span>
+            <ArrowRight className="size-3 text-ink-2" />
+            <span className="border border-line bg-paper px-2.5 py-1 rounded">DHT22 + Soil Probe</span>
+            <ArrowRight className="size-3 text-ink-2" />
+            <span className="border border-line bg-paper px-2.5 py-1 rounded">Web Serial API</span>
+            <ArrowRight className="size-3 text-ink-2" />
+            <span className="border border-line bg-paper px-2.5 py-1 rounded">Sensor Telemetry Service</span>
+            <ArrowRight className="size-3 text-ink-2" />
+            <span className="border border-line bg-paper px-2.5 py-1 rounded">Supabase Storage</span>
+            <ArrowRight className="size-3 text-ink-2" />
+            <span className="border border-forest bg-forest/10 text-forest px-2.5 py-1 rounded font-bold">
+              Farmer Decision Engine
+            </span>
+          </div>
+          <p className="text-[0.6875rem] text-ink-2 leading-relaxed">
+            Raw voltage pulses and digital one-wire packets are parsed in real time in the browser, calibrated against crop agronomic thresholds, persisted in Supabase for cross-role officer and expert visibility, and integrated with the leaf scanner for multi-source pathology fusion.
+          </p>
+        </div>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          MANUAL CALIBRATION DRAWER
+          ══════════════════════════════════════════════════════════════════════════════ */}
       {showCalibration && (
         <div className="border-t border-line bg-surface-2 p-4 space-y-3 animate-in fade-in duration-150">
           <div className="flex items-center justify-between border-b border-line pb-2">
             <div className="flex items-center gap-2">
               <Sliders className="size-4 text-forest" />
               <h4 className="font-display text-[0.875rem] font-bold text-ink">
-                Manual Microclimate Calibration & Stress Sliders
+                Manual Microclimate Calibration &amp; Stress Sliders
               </h4>
             </div>
             <button
@@ -416,17 +1050,17 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
               </div>
               <input
                 type="range"
-                min="5"
-                max="95"
+                min="0"
+                max="100"
                 step="1"
                 value={calibSoil}
                 onChange={(e) => setCalibSoil(parseFloat(e.target.value))}
                 className="w-full accent-leaf cursor-pointer"
               />
               <div className="flex justify-between text-[0.6875rem] text-ink-2 mt-0.5">
-                <span>5% (Desiccation)</span>
+                <span>0% (Desiccation)</span>
                 <span>50% (Ideal)</span>
-                <span>95% (Rot)</span>
+                <span>100% (Rot)</span>
               </div>
             </div>
           </div>
@@ -454,7 +1088,9 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
         </div>
       )}
 
-      {/* Raw Serial Terminal View */}
+      {/* ══════════════════════════════════════════════════════════════════════════════
+          RAW SERIAL TERMINAL
+          ══════════════════════════════════════════════════════════════════════════════ */}
       {showTerminal && (
         <div className="border-t border-line bg-[#0a0f0c] p-3 text-[0.75rem] font-mono text-[#00ff88]">
           <div className="flex items-center justify-between border-b border-[#00ff88]/20 pb-1.5 mb-2">
@@ -469,7 +1105,7 @@ export function ArduinoStatusCard({ className, compact = false }: ArduinoStatusC
 
           <div className="max-h-36 overflow-y-auto space-y-1 font-mono text-[0.6875rem] text-[#9dfcbe]">
             {rawLogs.length === 0 ? (
-              <p className="text-surface/40 italic">Waiting for incoming serial packets from Arduino node…</p>
+              <p className="text-surface/40 italic">Waiting for incoming serial packets from ESP32 node…</p>
             ) : (
               rawLogs.map((log, idx) => (
                 <div key={idx} className="leading-tight">
