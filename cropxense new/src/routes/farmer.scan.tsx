@@ -1,14 +1,12 @@
 /**
- * /farmer/scan — Crop Health Scanner with Real Computer Vision & ML Analysis.
+ * /farmer/scan — Crop Leaf Scanner with Real Computer Vision & Microclimate Hardware Integration.
  *
- * Performs real-time canvas-based computer vision analysis on uploaded crop leaf photos:
- * - Pixel chlorosis & necrosis segmentation
- * - NDVI spectral vegetation indexing
- * - Lesion hotspot detection & bounding box overlays
- * - Interactive spot inspection (click anywhere on the leaf to inspect pixel health)
- * - Multi-signal diagnostic scoring (symptoms + crop + district weather telemetry)
- * - Voice dictation assistant for field notes
- * - Instant synchronization with the Plant Protection Expert Validation Queue
+ * Integrates:
+ * 1. Web Serial Hardware Console (ArduinoStatusCard) with DHT22 Temp/Humidity + Soil Moisture VWC %
+ * 2. Real-Time Canvas Computer Vision (RealCVCanvas) with pixel necrosis, chlorosis, and NDVI mapping
+ * 3. Multi-Source Weighted Pathology Scoring Engine (50% Visual + 20% RH + 15% Temp + 15% Soil)
+ * 4. Multi-modal Voice Assistant for hands-free farmer speech dictation
+ * 5. Instant dispatch to State Plant Pathologist Validation Queue
  *
  * Fully localized across English, Hindi, Marathi, and Tamil.
  */
@@ -25,38 +23,37 @@ import {
   Sparkles,
   ShieldCheck,
   Info,
-  AlertTriangle,
   Layers,
   Activity,
   Mic,
-  Eye,
+  Cpu,
   Flame,
+  Droplets,
+  Sprout,
+  Thermometer,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfidenceBar, SeverityMeter, StatusChip } from "@/components/ui/Status";
 import { RealCVCanvas, type CVLayer, type AnalysisResult } from "@/components/app/RealCVCanvas";
+import { ArduinoStatusCard } from "@/components/app/ArduinoStatusCard";
 import { VoiceAssistant } from "@/components/app/VoiceAssistant";
+import { useArduinoSerial } from "@/hooks/useArduinoSerial";
 import { useAsync } from "@/hooks/useAsync";
 import { getFarmerFarms, cropName, STAGE_LABEL, submitAssessment, latestWeather, submitScanCase } from "@/services";
 import { CROPS, DISEASES, PESTS } from "@/data/reference";
+import { computeMultiSourceRiskScore, type MultiSourceRiskResult } from "@/services/scoringConfig";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/auth/AuthContext";
 import { cx } from "@/lib/cx";
-<<<<<<< Updated upstream
-import { validateImage, identifyCropFromImage, buildFullDiagnosis } from "@/services/imageAnalysis";
-import type { FullDiagnosis } from "@/services/imageAnalysis";
-import type { ImageValidation, CropStage, Farm } from "@/types";
-import { CVDiagnosticCanvas } from "@/components/farmer/CVDiagnosticCanvas";
-=======
 import type { Disease, Pest, CropStage, ImageValidation } from "@/types";
->>>>>>> Stashed changes
 import { useT } from "@/i18n";
 
 export const Route = createFileRoute("/farmer/scan")({
   head: () => ({
     meta: [
       { title: "Scan Crop — CropXense Farmer" },
-      { name: "description", content: "Photograph crop leaves, detect early plant diseases using computer vision and receive IPM guidance." },
+      { name: "description", content: "Photograph crop leaves, connect microclimate sensor hardware, and receive multi-source IPM diagnosis." },
     ],
   }),
   component: FarmerScanPage,
@@ -78,7 +75,6 @@ const SYMPTOM_KEYWORDS: Record<string, string[]> = {
   "Stem girdling":      ["girdle beetle", "borer"],
 };
 
-/** Score a disease or pest against the selected symptoms */
 function scoreThreat(name: string, symptoms: string[]): number {
   let score = 0;
   const lower = name.toLowerCase();
@@ -104,86 +100,7 @@ interface DiagnosisResult {
   chemical: string[];
   favourable?: string | undefined;
   differentials: { name: string; score: number }[];
-}
-
-function buildDiagnosis(
-  cropId: string,
-  symptoms: string[],
-  weatherRh: number,
-  weatherLeafWet: number,
-  cvAnalysis?: AnalysisResult | null,
-): DiagnosisResult | null {
-  const crop = CROPS.find((c) => c.id === cropId);
-  if (!crop) return null;
-
-  // Get all diseases and pests for this crop
-  const diseases = DISEASES.filter((d) => d.cropIds.includes(cropId));
-  const pests = PESTS.filter((p) => p.cropIds.includes(cropId));
-
-  type Candidate = { id: string; name: string; type: "disease" | "pest"; score: number; src: Disease | Pest };
-
-  const candidates: Candidate[] = [
-    ...diseases.map((d) => ({ id: d.id, name: d.name, type: "disease" as const, score: scoreThreat(d.name, symptoms), src: d })),
-    ...pests.map((p) => ({ id: p.id, name: p.name, type: "pest" as const, score: scoreThreat(p.name, symptoms), src: p })),
-  ];
-
-  // Boost based on real CV analysis if available
-  if (cvAnalysis) {
-    if (cvAnalysis.chlorosisPct > 20) {
-      candidates.forEach((c) => {
-        if (c.name.toLowerCase().includes("mosaic") || c.name.toLowerCase().includes("yellow") || c.name.toLowerCase().includes("rust")) {
-          c.score += 4;
-        }
-      });
-    }
-    if (cvAnalysis.necrosisPct > 15) {
-      candidates.forEach((c) => {
-        if (c.name.toLowerCase().includes("blight") || c.name.toLowerCase().includes("blast") || c.name.toLowerCase().includes("spot")) {
-          c.score += 4;
-        }
-      });
-    }
-  }
-
-  // Boost disease candidates when humidity is high
-  if (weatherRh >= 75 || weatherLeafWet >= 6) {
-    candidates.forEach((c) => { if (c.type === "disease") c.score += 3; });
-  }
-  // Boost pest candidates in drier conditions
-  if (weatherRh < 65) {
-    candidates.forEach((c) => { if (c.type === "pest") c.score += 2; });
-  }
-  // If no symptoms chosen, pick the primary disease for the crop
-  if (symptoms.length === 0) {
-    candidates.forEach((c) => { c.score += 1; });
-  }
-
-  candidates.sort((a, b) => b.score - a.score);
-
-  const top = candidates[0];
-  if (!top) return null;
-
-  // Map score to confidence (min 60, max 96)
-  const rawConf = cvAnalysis ? cvAnalysis.confidence : Math.min(96, Math.max(60, 60 + top.score * 6));
-  const severity: 1 | 2 | 3 | 4 | 5 = cvAnalysis ? cvAnalysis.severity : (symptoms.length >= 4 ? 4 : symptoms.length >= 2 ? 3 : 2);
-
-  const src = top.src;
-  const isDis = top.type === "disease";
-
-  return {
-    threatId: top.id,
-    threatName: top.name,
-    threatType: top.type,
-    cropId,
-    cropName: crop.name,
-    confidence: rawConf,
-    severity,
-    cultural: isDis ? (src as Disease).cultural : (src as Pest).cultural,
-    biological: isDis ? (src as Disease).biological : (src as Pest).biological,
-    chemical: isDis ? (src as Disease).chemical : (src as Pest).chemical,
-    favourable: isDis ? (src as Disease).favourable : undefined,
-    differentials: candidates.slice(1, 4).map((c) => ({ name: c.name, score: c.score })),
-  };
+  multiSourceRisk: MultiSourceRiskResult;
 }
 
 const ALL_SYMPTOMS = [
@@ -197,6 +114,7 @@ function FarmerScanPage() {
   const { user } = useAuth();
   const { t, tCrop, tStage, tDistrict, tSymptom } = useT();
   const { data: farms } = useAsync(() => getFarmerFarms(user), [user?.id]);
+  const { reading: serialReading, isConnected: isSerialConnected, isSimulated: isSerialSimulated } = useArduinoSerial();
 
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [stage, setStage] = useState<Stage>("capture");
@@ -212,6 +130,12 @@ function FarmerScanPage() {
   const district = user?.district?.toLowerCase() ?? farms?.[0]?.districtId ?? "akola";
   const weather = latestWeather(district);
 
+  // Effective microclimate telemetry: Hardware Node priority, fallback to district weather
+  const effectiveTemp = isSerialConnected || isSerialSimulated ? serialReading.temperature : weather.tMaxC;
+  const effectiveHum = isSerialConnected || isSerialSimulated ? serialReading.humidity : weather.rhPct;
+  const effectiveSoil = isSerialConnected || isSerialSimulated ? serialReading.soilMoisture : undefined;
+  const isHardwareActive = isSerialConnected || isSerialSimulated;
+
   // Fallback real agricultural image when no upload is provided yet
   const defaultCropImageUrl = useMemo(() => {
     const threatId = selectedCropId === "cotton" ? "pink_bollworm" : selectedCropId === "soybean" ? "yellow_mosaic" : selectedCropId === "rice" ? "rice_blast" : selectedCropId === "tomato" ? "early_blight" : selectedCropId === "wheat" ? "yellow_rust" : selectedCropId === "onion" ? "purple_blotch" : "sigatoka";
@@ -220,11 +144,87 @@ function FarmerScanPage() {
 
   const effectiveImageSrc = uploadedImage || defaultCropImageUrl;
 
-  // Derive diagnosis from crop + symptoms + weather + real CV analysis
-  const diagnosis = useMemo(() => {
+  // Derive diagnosis with multi-source weighted scoring
+  const diagnosis = useMemo((): DiagnosisResult | null => {
     if (stage !== "result") return null;
-    return buildDiagnosis(selectedCropId, selectedSymptoms, weather.rhPct, weather.leafWetnessHrs, cvResult);
-  }, [stage, selectedCropId, selectedSymptoms, weather, cvResult]);
+
+    const crop = CROPS.find((c) => c.id === selectedCropId);
+    if (!crop) return null;
+
+    const diseases = DISEASES.filter((d) => d.cropIds.includes(selectedCropId));
+    const pests = PESTS.filter((p) => p.cropIds.includes(selectedCropId));
+
+    type Candidate = { id: string; name: string; type: "disease" | "pest"; score: number; src: Disease | Pest };
+
+    const candidates: Candidate[] = [
+      ...diseases.map((d) => ({ id: d.id, name: d.name, type: "disease" as const, score: scoreThreat(d.name, selectedSymptoms), src: d })),
+      ...pests.map((p) => ({ id: p.id, name: p.name, type: "pest" as const, score: scoreThreat(p.name, selectedSymptoms), src: p })),
+    ];
+
+    // Boost based on real CV analysis if available
+    if (cvResult) {
+      if (cvResult.chlorosisPct > 20) {
+        candidates.forEach((c) => {
+          if (c.name.toLowerCase().includes("mosaic") || c.name.toLowerCase().includes("yellow") || c.name.toLowerCase().includes("rust")) {
+            c.score += 4;
+          }
+        });
+      }
+      if (cvResult.necrosisPct > 15) {
+        candidates.forEach((c) => {
+          if (c.name.toLowerCase().includes("blight") || c.name.toLowerCase().includes("blast") || c.name.toLowerCase().includes("spot")) {
+            c.score += 4;
+          }
+        });
+      }
+    }
+
+    // Weather / Hardware humidity boost
+    if (effectiveHum >= 75) {
+      candidates.forEach((c) => { if (c.type === "disease") c.score += 3; });
+    }
+    if (effectiveHum < 65) {
+      candidates.forEach((c) => { if (c.type === "pest") c.score += 2; });
+    }
+    if (selectedSymptoms.length === 0) {
+      candidates.forEach((c) => { c.score += 1; });
+    }
+
+    candidates.sort((a, b) => b.score - a.score);
+    const top = candidates[0];
+    if (!top) return null;
+
+    const visualConfidence = cvResult ? cvResult.confidence : Math.min(96, Math.max(60, 60 + top.score * 6));
+    const severity: 1 | 2 | 3 | 4 | 5 = cvResult ? cvResult.severity : (selectedSymptoms.length >= 4 ? 4 : selectedSymptoms.length >= 2 ? 3 : 2);
+
+    // Multi-source weighted scoring evaluation
+    const multiSourceRisk = computeMultiSourceRiskScore({
+      visualScore: visualConfidence,
+      temperature: effectiveTemp,
+      humidity: effectiveHum,
+      soilMoisture: effectiveSoil,
+      isHardwareLive: isHardwareActive,
+    });
+
+    const src = top.src;
+    const isDis = top.type === "disease";
+
+    return {
+      threatId: top.id,
+      threatName: top.name,
+      threatType: top.type,
+      cropId: selectedCropId,
+      cropName: crop.name,
+      confidence: multiSourceRisk.finalRiskScore,
+      severity,
+      cultural: isDis ? (src as Disease).cultural : (src as Pest).cultural,
+      biological: isDis ? (src as Disease).biological : (src as Pest).biological,
+      chemical: isDis ? (src as Disease).chemical : (src as Pest).chemical,
+      favourable: isDis ? (src as Disease).favourable : undefined,
+      differentials: candidates.slice(1, 4).map((c) => ({ name: c.name, score: c.score })),
+      multiSourceRisk,
+    };
+  }, [stage, selectedCropId, selectedSymptoms, effectiveTemp, effectiveHum, effectiveSoil, isHardwareActive, cvResult]);
 
   function toggleSymptom(s: string) {
     setSelectedSymptoms((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
@@ -246,7 +246,7 @@ function FarmerScanPage() {
     setStage("analysing");
     setTimeout(() => {
       setStage("result");
-      toast("Computer vision & symptom analysis complete!", "healthy");
+      toast("Computer vision & multi-source microclimate analysis complete!", "healthy");
     }, 1000);
   }
 
@@ -269,10 +269,7 @@ function FarmerScanPage() {
         symptoms: selectedSymptoms,
         cropStage: growthStage,
         notes: notes || undefined,
-<<<<<<< Updated upstream
-        diagnosis,
         farmerId: user?.id,
-=======
         diagnosis: {
           threatId: diagnosis.threatId,
           threatName: diagnosis.threatName,
@@ -293,15 +290,17 @@ function FarmerScanPage() {
             confidence: d.score * 10,
           })),
           riskAssessment: {
-            diseaseRisk: weather.rhPct >= 75 ? "high" : "moderate",
+            diseaseRisk: diagnosis.multiSourceRisk.riskLevel === "critical" || diagnosis.multiSourceRisk.riskLevel === "high" ? "high" : "moderate",
             pestRisk: "moderate",
-            spreadRisk: weather.rainfallMm > 10 ? "high" : "low",
-            overallRisk: "moderate",
-            drivers: [`Humidity ${weather.rhPct}%`, `Leaf wetness ${weather.leafWetnessHrs}h`],
+            spreadRisk: effectiveHum >= 80 ? "high" : "low",
+            overallRisk: diagnosis.multiSourceRisk.riskLevel,
+            drivers: diagnosis.multiSourceRisk.drivers,
           },
-          explanations: [`Computer vision confirmed ${diagnosis.threatName} lesion patterns`],
+          explanations: [
+            `Multi-Source Weighted Score: ${diagnosis.confidence}% combining Computer Vision (${(diagnosis.multiSourceRisk.weights.visual * 100).toFixed(0)}%) and Microclimate Telemetry (${((diagnosis.multiSourceRisk.weights.humidity + diagnosis.multiSourceRisk.weights.temperature + diagnosis.multiSourceRisk.weights.soil) * 100).toFixed(0)}%).`,
+            ...diagnosis.multiSourceRisk.drivers,
+          ],
         },
->>>>>>> Stashed changes
       });
 
       toast("Case transmitted to State Plant Pathologist validation queue!", "healthy");
@@ -320,17 +319,17 @@ function FarmerScanPage() {
           <div>
             <span className="text-caption text-forest">{t("nav.scan")}</span>
             <h1 className="mt-0.5 font-expanded text-[1.375rem] md:text-[1.625rem]">
-              Real-Time AI Crop Health Scanner
+              AI Crop Health &amp; Microclimate Scanner
             </h1>
             <p className="text-[0.8125rem] text-ink-2 mt-0.5">
-              Client-side computer vision lesion detection, NDVI vegetation analysis, and scientific IPM recommendations.
+              Client-side computer vision lesion detection, DHT22 &amp; Soil Moisture hardware telemetry, and multi-source weighted IPM diagnosis.
             </p>
           </div>
           {stage === "result" && (
             <button
               type="button"
               onClick={() => { setStage("capture"); }}
-              className="inline-flex min-h-[38px] items-center gap-2 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2"
+              className="inline-flex min-h-[38px] items-center gap-2 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2 rounded"
             >
               <RotateCcw className="size-3.5" />
               {t("farmer.reScan")}
@@ -338,6 +337,9 @@ function FarmerScanPage() {
           )}
         </div>
       </div>
+
+      {/* ── HARDWARE STATUS CONSOLE (Mounted Above Step 1) ── */}
+      <ArduinoStatusCard />
 
       {/* ── STAGE 1: CAPTURE & PARAMETERS ── */}
       {stage === "capture" && (
@@ -350,7 +352,7 @@ function FarmerScanPage() {
                   1. Real Crop Leaf Photo
                 </h2>
                 <span className="text-caption text-forest font-semibold">
-                  {uploadedImage ? "Custom Upload" : "Field Photo Active"}
+                  {uploadedImage ? "Custom Upload Active" : "Field Specimen Active"}
                 </span>
               </div>
 
@@ -370,7 +372,7 @@ function FarmerScanPage() {
               <label className="mt-4 flex min-h-[100px] cursor-pointer flex-col items-center justify-center gap-2 border-2 border-dashed border-line bg-surface-2 p-4 text-center hover:border-forest hover:bg-surface transition-colors rounded">
                 <Camera className="size-7 text-forest" />
                 <span className="text-[0.9375rem] font-semibold text-ink">
-                  {uploadedImage ? "Replace with Another Camera Photo" : "Upload or Take Photo with Camera"}
+                  {uploadedImage ? "Replace with Another Photo" : "Upload or Take Photo with Camera"}
                 </span>
                 <span className="text-[0.75rem] text-ink-2">Supports JPG, PNG, WEBP — Any Crop Leaf</span>
                 <input
@@ -391,328 +393,13 @@ function FarmerScanPage() {
             </div>
           </div>
 
-<<<<<<< Updated upstream
-          <div className="lg:col-span-5">
-            <div className="border border-line bg-surface p-5">
-              <h3 className="font-display text-[1rem] font-semibold mb-3">Photo Guidelines</h3>
-              <ul className="space-y-2 text-[0.8125rem] text-ink-2">
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="size-4 text-leaf shrink-0 mt-0.5" />
-                  <span>Hold camera <strong className="text-ink">15–30 cm</strong> from the leaf</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="size-4 text-leaf shrink-0 mt-0.5" />
-                  <span>Ensure <strong className="text-ink">good natural lighting</strong></span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <CheckCircle2 className="size-4 text-leaf shrink-0 mt-0.5" />
-                  <span>Show upper and lower leaf surface if possible</span>
-                </li>
-              </ul>
-
-              {imageValidation?.leafDetected && imageValidation.detectedSymptoms.length > 0 && (
-                <div className="mt-4 border-t border-line pt-4">
-                  <h4 className="text-caption text-forest mb-2">Auto-detected Symptoms</h4>
-                  <div className="flex flex-wrap gap-1.5">
-                    {imageValidation.detectedSymptoms.map((s) => (
-                      <span key={s} className="rounded-[var(--r)] bg-forest/10 px-2 py-1 text-[0.75rem] font-semibold text-forest">
-                        {tSymptom(s)}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 2: CROP SELECTION ── */}
-      {step === "crop" && (
-        <div className="border border-line bg-surface p-5 max-w-2xl">
-          <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-            2. {t("scan.step2")}
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {CROPS.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => { setSelectedCropId(c.id); setStep("field"); }}
-                className={cx(
-                  "flex flex-col items-center justify-center min-h-[72px] border p-3 text-center transition-colors",
-                  selectedCropId === c.id
-                    ? "border-forest bg-forest/10 text-forest font-bold"
-                    : "border-line bg-paper text-ink hover:bg-surface-2",
-                )}
-              >
-                <Leaf className="size-5 mb-1" />
-                <span className="text-[0.875rem] font-semibold">{tCrop(c.id)}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => { setSelectedCropId(""); setStep("field"); }}
-              className="flex flex-col items-center justify-center min-h-[72px] border border-line bg-paper p-3 text-center text-ink-2 hover:bg-surface-2"
-            >
-              <span className="text-[0.875rem] font-semibold">Not sure</span>
-              <span className="text-[0.7rem]">Auto-detect</span>
-            </button>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setStep("upload")}
-              className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2"
-            >
-              <ArrowLeft className="size-3.5" /> Back
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 3: FIELD SELECTION ── */}
-      {step === "field" && (
-        <div className="border border-line bg-surface p-5 max-w-2xl">
-          <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-            3. {t("scan.step3")}
-          </h2>
-          {farms && farms.length > 0 ? (
-            <div className="space-y-2">
-              {farms.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => { setSelectedFieldId(f.id); setStep("stage"); }}
-                  className={cx(
-                    "w-full text-left flex items-center justify-between border p-3 transition-colors",
-                    selectedFieldId === f.id
-                      ? "border-forest bg-forest/10"
-                      : "border-line bg-paper hover:bg-surface-2",
-                  )}
-                >
-                  <div>
-                    <p className="font-semibold text-ink">{f.name}</p>
-                    <p className="text-[0.8125rem] text-ink-2">{f.village} · {tCrop(f.cropId)} · {f.areaHa} ha</p>
-                  </div>
-                  <ArrowRight className="size-4 text-ink-2" />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="p-4 border border-line bg-paper text-center">
-              <p className="text-[0.875rem] text-ink-2 mb-3">No fields registered yet under your account.</p>
-              <Link
-                to="/farmer/fields"
-                className="inline-flex min-h-[36px] items-center gap-1.5 border border-forest bg-forest px-4 text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20]"
-              >
-                <span>+ Register Field First</span>
-              </Link>
-            </div>
-          )}
-          <div className="mt-4 flex items-center gap-2">
-            <button type="button" onClick={() => setStep("crop")} className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2">
-              <ArrowLeft className="size-3.5" /> Back
-            </button>
-            <button type="button" onClick={() => setStep("stage")} className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2">
-              Skip <ArrowRight className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 4: GROWTH STAGE ── */}
-      {step === "stage" && (
-        <div className="border border-line bg-surface p-5 max-w-2xl">
-          <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-            4. {t("scan.step4")}
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {STAGES.map((s) => (
-              <button
-                key={s.value}
-                type="button"
-                onClick={() => { setGrowthStage(s.value); setStep("symptoms"); }}
-                className={cx(
-                  "flex items-center justify-center min-h-[44px] border p-2 text-[0.875rem] font-semibold transition-colors",
-                  growthStage === s.value
-                    ? "border-forest bg-forest/10 text-forest"
-                    : "border-line bg-paper text-ink hover:bg-surface-2",
-                )}
-              >
-                {tStage(s.value)}
-              </button>
-            ))}
-          </div>
-          <div className="mt-4">
-            <button type="button" onClick={() => setStep("field")} className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2">
-              <ArrowLeft className="size-3.5" /> Back
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 5: SYMPTOMS ── */}
-      {step === "symptoms" && (
-        <div className="border border-line bg-surface p-5 max-w-2xl">
-          <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-            5. {t("scan.step5")}
-          </h2>
-          <div className="grid grid-cols-2 gap-1.5">
-            {ALL_SYMPTOMS.map((sym) => {
-              const checked = selectedSymptoms.includes(sym);
-              const autoDetected = imageValidation?.detectedSymptoms.some((s) =>
-                s.toLowerCase().includes(sym.toLowerCase().split("/")[0]!.split(" ")[0]!)
-              );
-              return (
-                <button
-                  key={sym}
-                  type="button"
-                  onClick={() => toggleSymptom(sym)}
-                  className={cx(
-                    "flex items-center gap-2 border p-2.5 text-left text-[0.8125rem] transition-colors rounded-[var(--r)]",
-                    checked
-                      ? "border-forest bg-forest/10 text-forest font-semibold"
-                      : "border-line bg-paper text-ink-2 hover:bg-surface-2",
-                  )}
-                >
-                  <span className={cx(
-                    "size-4 shrink-0 border flex items-center justify-center text-[0.625rem] rounded-sm",
-                    checked ? "border-forest bg-forest text-surface" : "border-line bg-surface",
-                  )}>
-                    {checked && "✓"}
-                  </span>
-                  <span>{tSymptom(sym)}</span>
-                  {autoDetected && <span className="ml-auto text-[0.6875rem] text-forest">auto</span>}
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <button type="button" onClick={() => setStep("stage")} className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2">
-              <ArrowLeft className="size-3.5" /> Back
-            </button>
-            <button type="button" onClick={() => setStep("notes")} className="inline-flex min-h-[38px] items-center gap-1 border border-forest bg-forest px-4 text-[0.8125rem] font-semibold text-surface hover:bg-[#0e2b20]">
-              Continue <ArrowRight className="size-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── STEP 6: NOTES ── */}
-      {step === "notes" && (
-        <div className="border border-line bg-surface p-5 max-w-2xl">
-          <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-            6. {t("scan.step6")}
-          </h2>
-          <textarea
-            rows={3}
-            placeholder="e.g. Symptoms observed on lower leaf surfaces..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            className="block w-full border border-line bg-paper p-2.5 text-[0.875rem] outline-none focus:border-forest"
-          />
-
-          {/* Summary before analysis */}
-          <div className="mt-4 border border-line bg-paper p-3 text-[0.8125rem]">
-            <h3 className="font-semibold text-ink mb-2">Scan Context Summary</h3>
-            <div className="space-y-1 text-ink-2">
-              <p>Image: <strong className="text-ink">✓ Uploaded</strong></p>
-              <p>{t("field.crop")}: <strong className="text-ink">{selectedCrop ? tCrop(selectedCrop.id) : "Auto-detect"}</strong></p>
-              <p>{t("nav.fields")}: <strong className="text-ink">{selectedFarm?.name || "Unassigned"}</strong></p>
-              <p>{t("field.growthStage")}: <strong className="text-ink">{tStage(growthStage)}</strong></p>
-              <p>{t("scan.step5")}: <strong className="text-ink">{selectedSymptoms.length > 0 ? selectedSymptoms.map(s => tSymptom(s)).join(", ") : "None selected"}</strong></p>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-center gap-2">
-            <button type="button" onClick={() => setStep("symptoms")} className="inline-flex min-h-[38px] items-center gap-1 border border-line bg-paper px-3 text-[0.8125rem] font-semibold text-ink hover:bg-surface-2">
-              <ArrowLeft className="size-3.5" /> Back
-            </button>
-            <Button onClick={handleAnalyze} className="flex-1 min-h-[46px] text-[0.9375rem]">
-              <ScanLine className="size-4 mr-2" />
-              {t("scan.analyzing")}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* ── ANALYSING ── */}
-      {step === "analysing" && (
-        <div className="border border-line bg-surface p-8 md:p-12 max-w-xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="relative inline-flex size-16 items-center justify-center rounded-full border-2 border-forest border-t-transparent animate-spin">
-              <ScanLine className="size-7 text-forest animate-pulse" />
-            </div>
-            <h2 className="mt-5 font-display text-[1.125rem] font-semibold text-ink">
-              {t("scan.analyzing")}
-            </h2>
-            <p className="mt-1 text-[0.8125rem] text-ink-2">
-              {selectedCrop ? tCrop(selectedCrop.id) : "Crop"} · {tStage(growthStage)}
-            </p>
-          </div>
-
-          <div className="space-y-3">
-            {ANALYSIS_STEPS.map((label, i) => {
-              const done = analysisStep > i;
-              const active = analysisStep === i;
-              return (
-                <div
-                  key={label}
-                  className={cx(
-                    "flex items-center gap-3 px-3 py-2 text-[0.875rem] transition-all duration-300",
-                    done ? "text-leaf" : active ? "text-forest font-semibold" : "text-ink-2",
-                  )}
-                >
-                  {done ? (
-                    <CheckCircle2 className="size-5 text-leaf" />
-                  ) : active ? (
-                    <div className="size-5 rounded-full border-2 border-forest border-t-transparent animate-spin" />
-                  ) : (
-                    <div className="size-5 rounded-full border-2 border-line" />
-                  )}
-                  <span>{label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── RESULT ── */}
-      {step === "result" && diagnosis && (
-        <div className="grid gap-5 lg:grid-cols-12">
-          {/* Left: Image + Evidence + CV Canvas */}
-          <div className="space-y-4 lg:col-span-7">
-            {/* Interactive CV Diagnostic Canvas */}
-            <CVDiagnosticCanvas
-              imageUrl={uploadedImage || `/crops/${diagnosis.threatId}.jpg`}
-              cropName={tCrop(diagnosis.cropId)}
-              threatName={diagnosis.threatName}
-              confidence={diagnosis.confidence}
-              severity={diagnosis.severity}
-              symptoms={selectedSymptoms}
-              className="mb-4 shadow-sm"
-            />
-
-            {/* Image Assessment & Details */}
-=======
           {/* Parameters Panel */}
           <div className="space-y-4 lg:col-span-5">
->>>>>>> Stashed changes
             <div className="border border-line bg-surface p-5">
               <h2 className="font-display text-[1.0625rem] font-semibold border-b border-line pb-2 mb-4">
-                2. Crop & Symptoms
+                2. Crop &amp; Symptoms
               </h2>
 
-<<<<<<< Updated upstream
-              {/* Image validation summary */}
-              <div className="grid grid-cols-2 gap-2 text-[0.8125rem] mb-4">
-                <div className="flex items-center gap-2 border border-line bg-paper p-2">
-                  <CheckCircle2 className="size-4 text-leaf" />
-                  <span>Leaf Detected</span>
-=======
               <div className="space-y-4 text-[0.875rem]">
                 {/* Crop */}
                 <div>
@@ -761,7 +448,6 @@ function FarmerScanPage() {
                     <option value="fruiting">Fruiting</option>
                     <option value="harvest">Harvest</option>
                   </select>
->>>>>>> Stashed changes
                 </div>
 
                 {/* Symptoms */}
@@ -821,7 +507,7 @@ function FarmerScanPage() {
                   className="w-full min-h-[46px] text-[0.9375rem] bg-forest text-surface font-semibold hover:bg-[#0e2b20]"
                 >
                   <Sparkles className="size-4 mr-2" />
-                  Run Real ML Computer Vision Scan
+                  Run Multi-Source AI Scan
                 </Button>
               </div>
             </div>
@@ -836,18 +522,18 @@ function FarmerScanPage() {
             <ScanLine className="size-7 text-forest animate-pulse" />
           </div>
           <h2 className="mt-6 font-display text-[1.25rem] font-semibold text-ink">
-            Executing Computer Vision ML Pixel Pipeline…
+            Executing Multi-Source Pathology Fusion Pipeline…
           </h2>
           <p className="mt-1 text-[0.875rem] text-ink-2">
-            Segmenting chlorosis, detecting necrotic lesion contours, and cross-referencing {district} weather ({weather.rhPct}% RH).
+            Fusing Computer Vision necrosis contours with {isHardwareActive ? "Live Hardware Telemetry" : "District Microclimate Telemetry"} ({effectiveTemp.toFixed(1)}°C, {effectiveHum.toFixed(0)}% RH{effectiveSoil !== undefined ? `, ${effectiveSoil.toFixed(0)}% Soil` : ""}).
           </p>
         </div>
       )}
 
-      {/* ── STAGE 3: REAL ML COMPUTER VISION RESULT ── */}
+      {/* ── STAGE 3: REAL ML COMPUTER VISION & MULTI-SOURCE RESULT ── */}
       {stage === "result" && diagnosis && (
         <div className="grid gap-5 lg:grid-cols-12">
-          {/* Left: Interactive Real CV Canvas */}
+          {/* Left: Interactive Real CV Canvas & Microclimate Weights */}
           <div className="space-y-4 lg:col-span-7">
             <div className="border border-line bg-surface p-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-line pb-3 mb-4 gap-2">
@@ -856,7 +542,7 @@ function FarmerScanPage() {
                     Computer Vision Diagnostic Canvas
                   </h2>
                   <p className="text-[0.75rem] text-ink-2">
-                    {uploadedImage ? "Real Camera Photo Analysis" : "Real Agricultural Field Specimen Analysis"}
+                    {uploadedImage ? "Camera Photo Pixel Segmentation" : "Real Agricultural Field Specimen Analysis"}
                   </p>
                 </div>
 
@@ -870,7 +556,7 @@ function FarmerScanPage() {
                       activeCvLayer === "none" ? "bg-forest text-surface" : "border border-line bg-paper text-ink hover:bg-surface-2",
                     )}
                   >
-                    RGB Photo
+                    RGB
                   </button>
                   <button
                     type="button"
@@ -880,7 +566,7 @@ function FarmerScanPage() {
                       activeCvLayer === "bounding_boxes" ? "bg-forest text-surface" : "border border-line bg-paper text-ink hover:bg-surface-2",
                     )}
                   >
-                    Bounding Boxes
+                    Boxes
                   </button>
                   <button
                     type="button"
@@ -890,7 +576,7 @@ function FarmerScanPage() {
                       activeCvLayer === "chlorosis" ? "bg-amber text-surface" : "border border-line bg-paper text-ink hover:bg-surface-2",
                     )}
                   >
-                    Chlorosis Map
+                    Chlorosis
                   </button>
                   <button
                     type="button"
@@ -900,7 +586,7 @@ function FarmerScanPage() {
                       activeCvLayer === "necrosis" ? "bg-alert text-surface" : "border border-line bg-paper text-ink hover:bg-surface-2",
                     )}
                   >
-                    Necrosis Map
+                    Necrosis
                   </button>
                   <button
                     type="button"
@@ -948,60 +634,76 @@ function FarmerScanPage() {
                 </div>
               )}
 
-              {/* Multi-Signal Evidence */}
-              <div className="mt-4 border-t border-line pt-4 space-y-2">
-                <h3 className="font-display text-[0.9375rem] font-semibold text-ink flex items-center gap-1.5">
-                  <Info className="size-4 text-forest" /> Why This Diagnosis?
-                </h3>
-                <ul className="space-y-2 text-[0.8125rem]">
-                  {selectedSymptoms.length > 0 && (
-                    <li className="flex items-start gap-2 border border-line bg-paper p-2.5 rounded">
-                      <CheckCircle2 className="size-4 shrink-0 text-leaf mt-0.5" />
-                      <span>
-                        <strong className="text-ink">Visual Symptom Match:</strong>{" "}
-                        <span className="text-ink-2">
-                          {selectedSymptoms.join(", ")} matched {diagnosis.threatName} lesion signature.
-                        </span>
-                      </span>
-                    </li>
-                  )}
-                  <li className="flex items-start gap-2 border border-line bg-paper p-2.5 rounded">
-                    <CheckCircle2 className="size-4 shrink-0 text-leaf mt-0.5" />
-                    <span>
-                      <strong className="text-ink">Microclimate Telemetry ({district}):</strong>{" "}
-                      <span className="text-ink-2">
-                        RH {weather.rhPct}%, leaf wetness {weather.leafWetnessHrs} hrs/day, {weather.rainfallMm} mm rain.
-                        {diagnosis.favourable ? ` Favourable conditions: ${diagnosis.favourable}.` : ""}
-                      </span>
-                    </span>
-                  </li>
-                  {diagnosis.differentials.length > 0 && (
-                    <li className="flex items-start gap-2 border border-line bg-paper p-2.5 rounded">
-                      <Info className="size-4 shrink-0 text-amber mt-0.5" />
-                      <span>
-                        <strong className="text-ink">Alternative Lookalikes Evaluated:</strong>{" "}
-                        <span className="text-ink-2">
-                          {diagnosis.differentials.map((d) => d.name).join(", ")} (lower match score).
-                        </span>
-                      </span>
-                    </li>
-                  )}
-                </ul>
+              {/* Multi-Source Weighted Breakdown Panel */}
+              <div className="mt-4 border-t border-line pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-display text-[0.9375rem] font-semibold text-ink flex items-center gap-1.5">
+                    <Cpu className="size-4 text-forest" /> Multi-Source Pathology Weights
+                  </h3>
+                  <span className="text-caption text-ink-2">
+                    {isHardwareActive ? "Live Hardware Streamed" : "Dynamic Re-normalization"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[0.75rem]">
+                  <div className="border border-line bg-surface-2 p-2 rounded">
+                    <div className="flex justify-between text-ink-2">
+                      <span>Visual CV:</span>
+                      <span className="font-bold text-ink">{(diagnosis.multiSourceRisk.weights.visual * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="num font-mono font-bold text-forest text-right mt-1">
+                      Score: {diagnosis.multiSourceRisk.subScores.visual}
+                    </div>
+                  </div>
+
+                  <div className="border border-line bg-surface-2 p-2 rounded">
+                    <div className="flex justify-between text-ink-2">
+                      <span>Rel Humidity:</span>
+                      <span className="font-bold text-ink">{(diagnosis.multiSourceRisk.weights.humidity * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="num font-mono font-bold text-water text-right mt-1">
+                      Score: {diagnosis.multiSourceRisk.subScores.humidity}
+                    </div>
+                  </div>
+
+                  <div className="border border-line bg-surface-2 p-2 rounded">
+                    <div className="flex justify-between text-ink-2">
+                      <span>Temperature:</span>
+                      <span className="font-bold text-ink">{(diagnosis.multiSourceRisk.weights.temperature * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="num font-mono font-bold text-alert text-right mt-1">
+                      Score: {diagnosis.multiSourceRisk.subScores.temperature}
+                    </div>
+                  </div>
+
+                  <div className="border border-line bg-surface-2 p-2 rounded">
+                    <div className="flex justify-between text-ink-2">
+                      <span>Soil Moisture:</span>
+                      <span className="font-bold text-ink">{(diagnosis.multiSourceRisk.weights.soil * 100).toFixed(0)}%</span>
+                    </div>
+                    <div className="num font-mono font-bold text-leaf text-right mt-1">
+                      Score: {diagnosis.multiSourceRisk.subScores.soil}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Evidence drivers */}
+                <div className="space-y-1.5 pt-1">
+                  {diagnosis.multiSourceRisk.drivers.map((drv, i) => (
+                    <div key={i} className="flex items-start gap-2 text-[0.8125rem] text-ink-2">
+                      <CheckCircle2 className="size-3.5 text-leaf shrink-0 mt-0.5" />
+                      <span>{drv}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-<<<<<<< Updated upstream
-          {/* Right: Diagnosis + Risk + IPM */}
-          <div className="space-y-4 lg:col-span-5">
-            {/* Primary finding */}
-            <div className="border border-forest bg-surface p-5">
-=======
-          {/* Right: Diagnosis & Official IPM Plan */}
+          {/* Right: Diagnosis & Standardized IPM Plan */}
           <div className="space-y-4 lg:col-span-5">
             {/* Finding card */}
-            <div className="border-2 border-forest bg-surface p-5 rounded">
->>>>>>> Stashed changes
+            <div className="border-2 border-forest bg-surface p-5 rounded shadow-sm">
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-caption text-forest font-bold uppercase tracking-wide">
@@ -1021,7 +723,7 @@ function FarmerScanPage() {
               {/* Confidence + Severity */}
               <div className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4">
                 <div>
-                  <span className="text-caption">Diagnostic Confidence</span>
+                  <span className="text-caption">Multi-Source Risk Score</span>
                   <div className="mt-1">
                     <ConfidenceBar value={diagnosis.confidence} label="" />
                   </div>
@@ -1042,7 +744,7 @@ function FarmerScanPage() {
             </div>
 
             {/* IPM Plan */}
-            <div className="border border-line bg-surface p-5 space-y-4 rounded">
+            <div className="border border-line bg-surface p-5 space-y-4 rounded shadow-sm">
               <div className="flex items-center gap-2 border-b border-line pb-2">
                 <ShieldCheck className="size-5 text-forest" />
                 <h3 className="font-display text-[1.0625rem] font-semibold text-ink">

@@ -39,6 +39,7 @@ import {
 } from "@/services";
 import { useAuth } from "@/auth/AuthContext";
 import { useT } from "@/i18n";
+import { ArduinoStatusCard } from "@/components/app/ArduinoStatusCard";
 import { cx } from "@/lib/cx";
 import type { Farm, CropHealthAssessment, Advisory, FollowUp } from "@/types";
 
@@ -484,6 +485,13 @@ function FarmerOverviewPage() {
                 ))}
               </div>
             )}
+          </section>
+
+          {/* =====================================================================
+              MICROCLIMATE HARDWARE INTEGRATION NODE
+          ===================================================================== */}
+          <section>
+            <ArduinoStatusCard />
           </section>
 
           {/* =====================================================================

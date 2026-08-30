@@ -32,6 +32,7 @@ import {
 } from "@/services";
 import { useT } from "@/i18n";
 import { cx } from "@/lib/cx";
+import { ArduinoStatusCard } from "@/components/app/ArduinoStatusCard";
 
 export const Route = createFileRoute("/farmer/forecast")({
   head: () => ({
@@ -144,6 +145,9 @@ function FarmerForecastPage() {
           </div>
         </div>
       </div>
+
+      {/* Hardware Status Console */}
+      <ArduinoStatusCard />
 
       {/* 7-Day Timeline Bar */}
       <section className="border border-line bg-surface p-5">
