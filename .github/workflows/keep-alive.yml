@@ -1,0 +1,24 @@
+name: Keep Supabase Project Awake
+
+on:
+  schedule:
+    # Runs every 3 days at 06:00 UTC (well within the 7-day inactivity pause window)
+    - cron: '0 6 */3 * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping-supabase:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST & Auth Endpoints
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://yqolllbkscvabgsqwjrn.supabase.co' }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'sb_publishable_NijM7kvdz4j9aGA1_Q2OMw_cgelFFeR' }}
+        run: |
+          echo "Pinging Supabase Auth Health..."
+          curl -s -f -H "apikey: $SUPABASE_KEY" "$SUPABASE_URL/auth/v1/health" || echo "Auth health ping completed"
+          
+          echo "Pinging Supabase REST API..."
+          curl -s -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" "$SUPABASE_URL/rest/v1/" || echo "REST ping completed"
+          
+          echo "Keep-alive ping successfully sent!"
